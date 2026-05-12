@@ -13,6 +13,16 @@ const {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
+if (!TOKEN) {
+  console.error("TOKEN no definido en variables de entorno");
+  process.exit(1);
+}
+
+if (!CLIENT_ID) {
+  console.error("CLIENT_ID no definido en variables de entorno");
+  process.exit(1);
+}
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
