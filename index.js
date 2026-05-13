@@ -9,8 +9,7 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   REST,
-  Routes,
-  PermissionFlagsBits
+  Routes
 } = require('discord.js');
 
 const app = express();
@@ -61,10 +60,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('sponsor')
-    .setDescription('Muestra el canal de YouTube')
-    .setDefaultMemberPermissions(
-      PermissionFlagsBits.ManageGuild
-    ),
+    .setDescription('Muestra el canal de YouTube'),
 
   new SlashCommandBuilder()
     .setName('register')
@@ -74,17 +70,11 @@ const commands = [
         .setName('usuario')
         .setDescription('Usuario a revisar')
         .setRequired(true)
-    )
-    .setDefaultMemberPermissions(
-      PermissionFlagsBits.ManageGuild
     ),
 
   new SlashCommandBuilder()
     .setName('leaderboard')
     .setDescription('Top 10 usuarios con más leaves')
-    .setDefaultMemberPermissions(
-      PermissionFlagsBits.ManageGuild
-    )
 
 ].map(command => command.toJSON());
 
@@ -159,8 +149,7 @@ client.on('interactionCreate', async interaction => {
       .setColor('#FF0000');
 
     return interaction.reply({
-      embeds: [embed],
-      ephemeral: true
+      embeds: [embed]
     });
   }
 
@@ -198,8 +187,7 @@ client.on('interactionCreate', async interaction => {
       .setTimestamp();
 
     return interaction.reply({
-      embeds: [embed],
-      ephemeral: true
+      embeds: [embed]
     });
   }
 
@@ -234,8 +222,7 @@ client.on('interactionCreate', async interaction => {
       .setTimestamp();
 
     return interaction.reply({
-      embeds: [embed],
-      ephemeral: true
+      embeds: [embed]
     });
   }
 });
