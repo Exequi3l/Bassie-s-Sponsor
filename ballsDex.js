@@ -76,12 +76,11 @@ let claimed = false;
 
 function spawnChubby(client) {
 
-  const item = ITEMS[0]; // solo Boxten
+  const item = ITEMS[0];
 
   currentSpawn = item;
   claimed = false;
 
-  // 🔥 CANAL FIJO
   const channel = client.channels.cache.get("1497767351041654896");
   if (!channel) return;
 
@@ -114,10 +113,6 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       Routes.applicationCommands(CLIENT_ID),
       {
         body: [
-          new SlashCommandBuilder()
-            .setName('inventory')
-            .setDescription('Ver tu colección'),
-
           new SlashCommandBuilder()
             .setName('coleccion')
             .setDescription('Ver colección avanzada de chubbys')
@@ -208,27 +203,7 @@ client.on('interactionCreate', async interaction => {
     });
   }
 
-  // ───── INVENTORY ─────
-  if (interaction.isChatInputCommand() && interaction.commandName === 'inventory') {
-
-    const data = loadData();
-    const user = data[interaction.user.id];
-
-    if (!user || !user.collection.length) {
-      return interaction.reply({
-        content: "📦 No tienes chubbys aún.",
-        ephemeral: true
-      });
-    }
-
-    return interaction.reply({
-      content:
-        `📦 Tu colección:\n` +
-        user.collection.map(() => `- Boxten`).join('\n')
-    });
-  }
-
-  // ───── COLECCION PRO ─────
+  // ───── COLECCION ─────
   if (interaction.isChatInputCommand() && interaction.commandName === 'coleccion') {
 
     const data = loadData();
@@ -241,11 +216,14 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    const owned = user.collection.length;
-    const percent = "100.0";
+    const totalUnique = ITEMS.length;
+    const ownedUnique = 1;
+
+    const percent = ((ownedUnique / totalUnique) * 100).toFixed(1);
 
     let text = "📦 **Tu colección de chubbys:**\n\n";
-    text += `📦 Boxten x${owned}\n`;
+
+    text += `📦 Boxten x${user.collection.length}\n`;
     text += `\n📊 Llevas un ${percent}% de la colección total`;
 
     return interaction.reply({ content: text });
