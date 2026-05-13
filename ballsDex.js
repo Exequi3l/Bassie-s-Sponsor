@@ -14,7 +14,8 @@ const {
   TextInputStyle,
   EmbedBuilder,
   REST,
-  Routes
+  Routes,
+  SlashCommandBuilder
 } = require('discord.js');
 
 const app = express();
@@ -57,17 +58,19 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// ───────── CHUBBY SYSTEM ─────────
+// ───────── CHUBBYS ─────────
 
 const ITEMS = [
   {
     id: "chubby_blue",
     name: "Chubby Azul",
+    emoji: "🔵",
     image: "https://i.imgur.com/example.png"
   },
   {
     id: "chubby_red",
     name: "Chubby Rojo",
+    emoji: "🔴",
     image: "https://i.imgur.com/example2.png"
   }
 ];
@@ -88,8 +91,8 @@ function spawnChubby(client) {
   if (!channel) return;
 
   const embed = new EmbedBuilder()
-    .setTitle("✨ ¡Apareció un Chubby!")
-    .setDescription("Haz click en el botón para capturarlo")
+    .setTitle("Un Chubby mágico ha aparecido...")
+    .setDescription("Haz click en el botón para capturarlo antes de que desaparezca!")
     .setImage(item.image)
     .setColor("#ff66cc");
 
@@ -106,25 +109,27 @@ function spawnChubby(client) {
   });
 }
 
-// ───────── COMMANDS (INVENTORY) ─────────
+// ───────── SLASH COMMANDS ─────────
 
-const commands = [
-  new REST({ version: '10' }).setToken(TOKEN)
-];
+const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
-    await commands[0].put(
+    await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       {
         body: [
-          new (require('discord.js').SlashCommandBuilder)()
+          new SlashCommandBuilder()
             .setName('inventory')
-            .setDescription('Ver tu colección')
-            .toJSON()
-        ]
+            .setDescription('Ver tu colección'),
+
+          new SlashCommandBuilder()
+            .setName('coleccion')
+            .setDescription('Ver colección avanzada de chubbys')
+        ].map(c => c.toJSON())
       }
     );
+
     console.log('Comandos registrados');
   } catch (err) {
     console.error(err);
@@ -138,7 +143,7 @@ client.once('ready', () => {
 
   setInterval(() => {
     spawnChubby(client);
-  }, 60000); // cada 60s
+  }, 60000);
 });
 
 // ───────── INTERACTIONS ─────────
@@ -165,25 +170,19 @@ client.on('interactionCreate', async interaction => {
       .setStyle(TextInputStyle.Short)
       .setRequired(true);
 
-    const row = new ActionRowBuilder().addComponents(input);
-    modal.addComponents(row);
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(input)
+    );
 
     return interaction.showModal(modal);
   }
 
-  // ───── MODAL ─────
+  // ───── MODAL CAPTURA ─────
   if (interaction.isModalSubmit() && interaction.customId === 'chubby_modal') {
 
-    if (!currentSpawn) {
+    if (!currentSpawn || claimed) {
       return interaction.reply({
         content: "❌ No hay chubby activo.",
-        ephemeral: true
-      });
-    }
-
-    if (claimed) {
-      return interaction.reply({
-        content: "❌ Ya fue capturado.",
         ephemeral: true
       });
     }
@@ -210,9 +209,7 @@ client.on('interactionCreate', async interaction => {
     claimed = true;
 
     return interaction.reply({
-      content:
-        `🎉 ¡Capturaste a **${currentSpawn.name}**!\n` +
-        `Usa /inventory para ver tu colección.`
+      content: `🎉 ¡Capturaste a **${currentSpawn.name}**!`
     });
   }
 
@@ -235,6 +232,42 @@ client.on('interactionCreate', async interaction => {
         user.collection.map(x => `- ${x}`).join('\n')
     });
   }
+
+  // ───── COLECCION PRO ─────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'coleccion') {
+
+    const data = loadData();
+    const user = data[interaction.user.id];
+
+    if (!user || !user.collection.length) {
+      return interaction.reply({
+        content: "📦 No tienes chubbys aún.",
+        ephemeral: true
+      });
+    }
+
+    const totalUnique = ITEMS.length;
+    const ownedUnique = [...new Set(user.collection)].length;
+
+    const percent = ((ownedUnique / totalUnique) * 100).toFixed(1);
+
+    let counts = {};
+    for (const id of user.collection) {
+      counts[id] = (counts[id] || 0) + 1;
+    }
+
+    let text = "📦 **Tu colección de chubbys:**\n\n";
+
+    for (const [id, count] of Object.entries(counts)) {
+      const item = ITEMS.find(x => x.id === id);
+      text += `${item?.emoji || "❓"} **${item?.name || id}** x${count}\n`;
+    }
+
+    text += `\n📊 Llevas un ${percent}% de la colección total`;
+
+    return interaction.reply({ content: text });
+  }
+
 });
 
 client.login(TOKEN);
