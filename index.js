@@ -25,13 +25,17 @@ app.listen(process.env.PORT || 3000, () => {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-// 👇 rol staff permitido
 const ALLOWED_ROLE_ID = '1498825341718761563';
+
+// 👇 CANAL LOGS SAPPHIRE
+const SAPPHIRE_LOG_CHANNEL = "1406751369401991258";
 
 if (!TOKEN || !CLIENT_ID) {
   console.error('Faltan variables de entorno');
   process.exit(1);
 }
+
+// ───────── DATA ─────────
 
 const DATA_FILE = './data.json';
 
@@ -47,15 +51,19 @@ function saveData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
+// ───────── CLIENT ─────────
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
 // ─────────────────────────────
-// COMMANDS (solo staff visibles)
+// COMMANDS
 // ─────────────────────────────
 
 const commands = [
@@ -76,7 +84,7 @@ const commands = [
 ].map(c => c.toJSON());
 
 // ─────────────────────────────
-// REGISTER COMMANDS
+// REGISTER COMMANDS (GLOBAL)
 // ─────────────────────────────
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -95,7 +103,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 })();
 
 // ─────────────────────────────
-// DATA TRACKING
+// TRACK REAL JOINS/LEAVES
 // ─────────────────────────────
 
 client.on('guildMemberAdd', member => {
@@ -121,7 +129,36 @@ client.on('guildMemberRemove', member => {
 });
 
 // ─────────────────────────────
-// PERMISSION CHECK (ROL + OWNER)
+// SAPPHIRE LOGS IMPORT
+// ─────────────────────────────
+
+client.on('messageCreate', message => {
+  if (message.channelId !== SAPPHIRE_LOG_CHANNEL) return;
+  if (!message.content) return;
+
+  const data = loadData();
+  const text = message.content.toLowerCase();
+
+  const userId = message.mentions.users.first()?.id;
+  if (!userId) return;
+
+  if (!data[userId]) {
+    data[userId] = { joins: 0, leaves: 0 };
+  }
+
+  if (text.includes('joined')) {
+    data[userId].joins++;
+    saveData(data);
+  }
+
+  if (text.includes('left')) {
+    data[userId].leaves++;
+    saveData(data);
+  }
+});
+
+// ─────────────────────────────
+// PERMISSIONS
 // ─────────────────────────────
 
 function isAllowed(interaction) {
@@ -132,7 +169,7 @@ function isAllowed(interaction) {
 }
 
 // ─────────────────────────────
-// COMMAND HANDLER
+// COMMANDS HANDLER
 // ─────────────────────────────
 
 client.on('interactionCreate', async interaction => {
