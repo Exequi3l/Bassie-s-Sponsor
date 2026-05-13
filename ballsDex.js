@@ -58,14 +58,28 @@ if (!fs.existsSync(DATA_FILE)) {
 }
 
 function loadData() {
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+
+  try {
+
+    return JSON.parse(
+      fs.readFileSync(DATA_FILE, 'utf8')
+    );
+
+  } catch {
+
+    return {};
+
+  }
+
 }
 
 function saveData(data) {
+
   fs.writeFileSync(
     DATA_FILE,
     JSON.stringify(data, null, 2)
   );
+
 }
 
 // ─────────────────────────────
@@ -111,8 +125,13 @@ async function spawnChubby() {
       );
 
     if (!channel) {
-      console.log('❌ Canal no encontrado');
+
+      console.log(
+        '❌ Canal no encontrado'
+      );
+
       return;
+
     }
 
     console.log(
@@ -154,16 +173,17 @@ async function spawnChubby() {
   } catch (err) {
 
     console.error(
-      '❌ Error enviando chubby:'
+      '❌ ERROR EN SPAWN'
     );
 
     console.error(err);
 
   }
+
 }
 
 // ─────────────────────────────
-// SLASH COMMANDS
+// REGISTER COMMANDS
 // ─────────────────────────────
 
 const rest =
@@ -189,14 +209,14 @@ async function registerCommands() {
           new SlashCommandBuilder()
             .setName('coleccion')
             .setDescription(
-              'Ver colección avanzada de chubbys'
+              'Ver colección de chubbys'
             )
         ].map(c => c.toJSON())
       }
     );
 
     console.log(
-      '✅ Comandos registrados correctamente'
+      '✅ Comandos registrados'
     );
 
   } catch (err) {
@@ -208,72 +228,85 @@ async function registerCommands() {
     console.error(err);
 
   }
+
 }
 
 // ─────────────────────────────
 // READY
 // ─────────────────────────────
 
-client.once('ready', async () => {
+client.once(
+  'clientReady',
+  async () => {
 
-  console.log(
-    '========== BOT READY =========='
-  );
+    console.log(
+      '========== BOT READY =========='
+    );
 
-  console.log(
-    `✅ Conectado como ${client.user.tag}`
-  );
+    console.log(
+      `✅ Logueado como ${client.user.tag}`
+    );
 
-  await registerCommands();
+    await registerCommands();
 
-  try {
+    try {
 
-    const testChannel =
-      await client.channels.fetch(
-        SPAWN_CHANNEL_ID
-      );
-
-    if (!testChannel) {
       console.log(
-        '❌ No se encontró el canal'
+        '🔍 Buscando canal...'
       );
-      return;
-    }
 
-    console.log(
-      `✅ Canal detectado: ${testChannel.name}`
-    );
+      const channel =
+        await client.channels.fetch(
+          SPAWN_CHANNEL_ID
+        );
 
-    // MENSAJE TEST
-    await testChannel.send(
-      '✅ BOT ONLINE Y FUNCIONANDO'
-    );
+      console.log(channel);
 
-    console.log(
-      '✅ Mensaje de prueba enviado'
-    );
+      if (!channel) {
 
-    // SPAWN INSTANTÁNEO
-    await spawnChubby();
+        console.log(
+          '❌ Canal inválido'
+        );
 
-    // SPAWNS AUTOMÁTICOS
-    setInterval(async () => {
+        return;
 
+      }
+
+      console.log(
+        `✅ Canal detectado: ${channel.name}`
+      );
+
+      // MENSAJE TEST
+      await channel.send(
+        '✅ BOT ONLINE Y FUNCIONANDO'
+      );
+
+      console.log(
+        '✅ Mensaje de prueba enviado'
+      );
+
+      // SPAWN INSTANTÁNEO
       await spawnChubby();
 
-    }, 30000);
+      // SPAWNS AUTOMÁTICOS
+      setInterval(async () => {
 
-  } catch (err) {
+        await spawnChubby();
 
-    console.error(
-      '❌ Error en READY'
-    );
+      }, 30000);
 
-    console.error(err);
+    } catch (err) {
+
+      console.error(
+        '❌ ERROR EN READY'
+      );
+
+      console.error(err);
+
+    }
 
   }
-
-});
+);
 
 // ─────────────────────────────
 // INTERACTIONS
@@ -283,7 +316,7 @@ client.on(
   'interactionCreate',
   async interaction => {
 
-    // ───────── BUTTON ─────────
+    // ───────── BOTÓN ─────────
 
     if (
       interaction.isButton() &&
@@ -302,8 +335,12 @@ client.on(
       }
 
       const modal = new ModalBuilder()
-        .setCustomId('chubby_modal')
-        .setTitle('Capturar Chubby');
+        .setCustomId(
+          'chubby_modal'
+        )
+        .setTitle(
+          'Capturar Chubby'
+        );
 
       const input =
         new TextInputBuilder()
@@ -394,7 +431,7 @@ client.on(
 
     }
 
-    // ───────── COLECCION ─────────
+    // ───────── /COLECCION ─────────
 
     if (
       interaction.isChatInputCommand() &&
@@ -421,28 +458,13 @@ client.on(
 
       }
 
-      const totalUnique =
-        ITEMS.length;
-
-      const ownedUnique = 1;
-
-      const percent = (
-        (ownedUnique /
-          totalUnique) *
-        100
-      ).toFixed(1);
-
-      let text =
-        '📦 **Tu colección de chubbys:**\n\n';
-
-      text +=
-        `📦 Boxten x${user.collection.length}\n`;
-
-      text +=
-        `\n📊 Llevas un ${percent}% de la colección total`;
+      const amount =
+        user.collection.length;
 
       return interaction.reply({
-        content: text
+        content:
+          `📦 **Tu colección:**\n\n` +
+          `📦 Boxten x${amount}`
       });
 
     }
