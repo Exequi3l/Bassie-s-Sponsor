@@ -8,7 +8,8 @@ const {
   GatewayIntentBits,
   SlashCommandBuilder,
   REST,
-  Routes
+  Routes,
+  PermissionFlagsBits
 } = require('discord.js');
 
 const app = express();
@@ -23,6 +24,9 @@ app.listen(process.env.PORT || 3000, () => {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+
+// 👇 rol staff permitido
+const ALLOWED_ROLE_ID = '1498825341718761563';
 
 if (!TOKEN || !CLIENT_ID) {
   console.error('Faltan variables de entorno');
@@ -50,47 +54,30 @@ const client = new Client({
   ]
 });
 
-
 // ─────────────────────────────
-// 🎮 BALLSDEX SYSTEM
-// ─────────────────────────────
-
-const ITEMS = [
-  { id: "fire_ball", name: "Fire Ball 🔥" },
-  { id: "water_ball", name: "Water Ball 💧" },
-  { id: "shadow_ball", name: "Shadow Ball 🌑" },
-  { id: "light_ball", name: "Light Ball ✨" }
-];
-
-let currentSpawn = null;
-let spawnChannel = null;
-
-function spawnItem(channel) {
-  const item = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-
-  currentSpawn = item;
-  spawnChannel = channel;
-
-  channel.send(
-    `✨ Ha aparecido un **${item.name}**!\n` +
-    `Escribe: \`/claim\` para capturarlo`
-  );
-}
-
-
-// ─────────────────────────────
-// COMMANDS
+// COMMANDS (solo staff visibles)
 // ─────────────────────────────
 
 const commands = [
   new SlashCommandBuilder()
-    .setName('claim')
-    .setDescription('Captura el item que aparece'),
+    .setName('register')
+    .setDescription('Ver historial de joins/leaves')
+    .addUserOption(opt =>
+      opt.setName('usuario')
+        .setDescription('Usuario')
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   new SlashCommandBuilder()
-    .setName('inventory')
-    .setDescription('Ver tus items')
+    .setName('leaderboard')
+    .setDescription('Top 10 leaves')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
 ].map(c => c.toJSON());
+
+// ─────────────────────────────
+// REGISTER COMMANDS
+// ─────────────────────────────
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
@@ -101,22 +88,21 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-    console.log('Comandos listos.');
+    console.log('Comandos registrados.');
   } catch (err) {
     console.error(err);
   }
 })();
 
-
 // ─────────────────────────────
-// JOINS / LEAVES TRACKING
+// DATA TRACKING
 // ─────────────────────────────
 
 client.on('guildMemberAdd', member => {
   const data = loadData();
 
   if (!data[member.id]) {
-    data[member.id] = { joins: 0, leaves: 0, collection: [] };
+    data[member.id] = { joins: 0, leaves: 0 };
   }
 
   data[member.id].joins++;
@@ -127,86 +113,83 @@ client.on('guildMemberRemove', member => {
   const data = loadData();
 
   if (!data[member.id]) {
-    data[member.id] = { joins: 0, leaves: 0, collection: [] };
+    data[member.id] = { joins: 0, leaves: 0 };
   }
 
   data[member.id].leaves++;
   saveData(data);
 });
 
+// ─────────────────────────────
+// PERMISSION CHECK (ROL + OWNER)
+// ─────────────────────────────
+
+function isAllowed(interaction) {
+  const isOwner = interaction.guild.ownerId === interaction.user.id;
+  const hasRole = interaction.member.roles.cache.has(ALLOWED_ROLE_ID);
+
+  return isOwner || hasRole;
+}
 
 // ─────────────────────────────
-// READY + SPAWN LOOP
-// ─────────────────────────────
-
-client.once('ready', () => {
-  console.log(`${client.user.tag} online.`);
-
-  const channel = client.channels.cache.find(c => c.isTextBased());
-
-  setInterval(() => {
-    if (channel) spawnItem(channel);
-  }, 60000); // cada 60s
-});
-
-
-// ─────────────────────────────
-// INTERACTIONS
+// COMMAND HANDLER
 // ─────────────────────────────
 
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  // ── CLAIM ──
-  if (interaction.commandName === 'claim') {
+  // REGISTER
+  if (interaction.commandName === 'register') {
 
-    if (!currentSpawn) {
+    if (!isAllowed(interaction)) {
       return interaction.reply({
-        content: '❌ No hay ningún item activo.',
+        content: '❌ Solo staff puede usar esto.',
         ephemeral: true
       });
     }
 
+    const user = interaction.options.getUser('usuario');
     const data = loadData();
-
-    if (!data[interaction.user.id]) {
-      data[interaction.user.id] = {
-        joins: 0,
-        leaves: 0,
-        collection: []
-      };
-    }
-
-    data[interaction.user.id].collection.push(currentSpawn.id);
-    saveData(data);
-
-    const claimed = currentSpawn;
-    currentSpawn = null;
-
-    return interaction.reply({
-      content: `🎉 Capturaste: **${claimed.name}**`
-    });
-  }
-
-  // ── INVENTORY ──
-  if (interaction.commandName === 'inventory') {
-
-    const data = loadData();
-    const user = data[interaction.user.id];
-
-    if (!user || !user.collection.length) {
-      return interaction.reply({
-        content: '📦 No tienes items aún.',
-        ephemeral: true
-      });
-    }
+    const info = data[user.id] || { joins: 0, leaves: 0 };
 
     return interaction.reply({
       content:
-        `📦 **Tu inventario:**\n` +
-        user.collection.map(i => `- ${i}`).join('\n')
+        `📊 **${user.tag}**\n` +
+        `Joins: ${info.joins}\n` +
+        `Leaves: ${info.leaves}`
     });
   }
+
+  // LEADERBOARD
+  if (interaction.commandName === 'leaderboard') {
+
+    if (!isAllowed(interaction)) {
+      return interaction.reply({
+        content: '❌ Solo staff puede usar esto.',
+        ephemeral: true
+      });
+    }
+
+    const data = loadData();
+
+    const sorted = Object.entries(data)
+      .sort((a, b) => b[1].leaves - a[1].leaves)
+      .slice(0, 10);
+
+    let msg = '';
+
+    sorted.forEach((u, i) => {
+      msg += `#${i + 1} <@${u[0]}> - ${u[1].leaves} leaves\n`;
+    });
+
+    return interaction.reply({
+      content: msg || 'Sin datos'
+    });
+  }
+});
+
+client.once('ready', () => {
+  console.log(`${client.user.tag} online.`);
 });
 
 client.login(TOKEN);
