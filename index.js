@@ -10,8 +10,7 @@ const {
   EmbedBuilder,
   REST,
   Routes,
-  PermissionFlagsBits,
-  InteractionResponseFlags
+  PermissionFlagsBits
 } = require('discord.js');
 
 const app = express();
@@ -92,6 +91,7 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
+
   try {
 
     console.log('Registrando comandos...');
@@ -106,6 +106,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   } catch (err) {
     console.error(err);
   }
+
 })();
 
 client.once('ready', () => {
@@ -159,7 +160,7 @@ client.on('interactionCreate', async interaction => {
 
     return interaction.reply({
       embeds: [embed],
-      flags: InteractionResponseFlags.Ephemeral
+      ephemeral: true
     });
   }
 
@@ -198,7 +199,7 @@ client.on('interactionCreate', async interaction => {
 
     return interaction.reply({
       embeds: [embed],
-      flags: InteractionResponseFlags.Ephemeral
+      ephemeral: true
     });
   }
 
@@ -234,7 +235,7 @@ client.on('interactionCreate', async interaction => {
 
     return interaction.reply({
       embeds: [embed],
-      flags: InteractionResponseFlags.Ephemeral
+      ephemeral: true
     });
   }
 });
