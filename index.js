@@ -7,7 +7,6 @@ const {
   Client,
   GatewayIntentBits,
   SlashCommandBuilder,
-  EmbedBuilder,
   REST,
   Routes,
   PermissionFlagsBits
@@ -26,7 +25,7 @@ app.listen(process.env.PORT || 3000, () => {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-// 👇 ROLE STAFF
+// 👇 rol staff permitido
 const ALLOWED_ROLE_ID = '1498825341718761563';
 
 if (!TOKEN || !CLIENT_ID) {
@@ -56,24 +55,24 @@ const client = new Client({
 });
 
 // ─────────────────────────────
-// COMMANDS
+// COMMANDS (solo staff visibles)
 // ─────────────────────────────
 
 const commands = [
   new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Ver historial de un usuario')
+    .setDescription('Ver historial de joins/leaves')
     .addUserOption(opt =>
       opt.setName('usuario')
         .setDescription('Usuario')
         .setRequired(true)
     )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ViewChannel),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   new SlashCommandBuilder()
     .setName('leaderboard')
-    .setDescription('Top 10 más leaves')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ViewChannel)
+    .setDescription('Top 10 leaves')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
 ].map(c => c.toJSON());
 
 // ─────────────────────────────
@@ -89,22 +88,14 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-    console.log('Comandos listos.');
+    console.log('Comandos registrados.');
   } catch (err) {
     console.error(err);
   }
 })();
 
 // ─────────────────────────────
-// READY
-// ─────────────────────────────
-
-client.once('ready', () => {
-  console.log(`${client.user.tag} online.`);
-});
-
-// ─────────────────────────────
-// TRACK JOINS / LEAVES
+// DATA TRACKING
 // ─────────────────────────────
 
 client.on('guildMemberAdd', member => {
@@ -130,17 +121,18 @@ client.on('guildMemberRemove', member => {
 });
 
 // ─────────────────────────────
-// PERMISSION CHECK
+// PERMISSION CHECK (ROL + OWNER)
 // ─────────────────────────────
 
 function isAllowed(interaction) {
   const isOwner = interaction.guild.ownerId === interaction.user.id;
   const hasRole = interaction.member.roles.cache.has(ALLOWED_ROLE_ID);
+
   return isOwner || hasRole;
 }
 
 // ─────────────────────────────
-// COMMANDS LOGIC
+// COMMAND HANDLER
 // ─────────────────────────────
 
 client.on('interactionCreate', async interaction => {
@@ -151,39 +143,20 @@ client.on('interactionCreate', async interaction => {
 
     if (!isAllowed(interaction)) {
       return interaction.reply({
-        content: '❌ No tienes permiso.',
+        content: '❌ Solo staff puede usar esto.',
         ephemeral: true
       });
     }
 
     const user = interaction.options.getUser('usuario');
     const data = loadData();
-
     const info = data[user.id] || { joins: 0, leaves: 0 };
 
-    const embed = new EmbedBuilder()
-      .setTitle('📊 Registro de Usuario')
-      .setThumbnail(user.displayAvatarURL())
-      .addFields(
-        {
-          name: 'Usuario',
-          value: `${user} | \`${user.id}\``
-        },
-        {
-          name: 'Joins',
-          value: `${info.joins}`,
-          inline: true
-        },
-        {
-          name: 'Leaves',
-          value: `${info.leaves}`,
-          inline: true
-        }
-      )
-      .setColor('#5865F2');
-
     return interaction.reply({
-      embeds: [embed]
+      content:
+        `📊 **${user.tag}**\n` +
+        `Joins: ${info.joins}\n` +
+        `Leaves: ${info.leaves}`
     });
   }
 
@@ -192,7 +165,7 @@ client.on('interactionCreate', async interaction => {
 
     if (!isAllowed(interaction)) {
       return interaction.reply({
-        content: '❌ No tienes permiso.',
+        content: '❌ Solo staff puede usar esto.',
         ephemeral: true
       });
     }
@@ -203,22 +176,20 @@ client.on('interactionCreate', async interaction => {
       .sort((a, b) => b[1].leaves - a[1].leaves)
       .slice(0, 10);
 
-    let desc = '';
+    let msg = '';
 
-    sorted.forEach((x, i) => {
-      desc += `**#${i + 1}** <@${x[0]}> | \`${x[0]}\`\nLeaves: **${x[1].leaves}**\n\n`;
+    sorted.forEach((u, i) => {
+      msg += `#${i + 1} <@${u[0]}> - ${u[1].leaves} leaves\n`;
     });
-
-    const embed = new EmbedBuilder()
-      .setTitle('🏆 Top Leaves')
-      .setDescription(desc || 'Sin datos')
-      .setColor('#FF0000')
-      .setThumbnail(client.user.displayAvatarURL());
 
     return interaction.reply({
-      embeds: [embed]
+      content: msg || 'Sin datos'
     });
   }
+});
+
+client.once('ready', () => {
+  console.log(`${client.user.tag} online.`);
 });
 
 client.login(TOKEN);
