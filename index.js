@@ -25,6 +25,8 @@ app.listen(process.env.PORT || 3000, () => {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
+const ALLOWED_ROLE_ID = '1498825341718761563';
+
 if (!TOKEN) {
   console.error('TOKEN no definido');
   process.exit(1);
@@ -155,6 +157,13 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.commandName === 'register') {
 
+    if (!interaction.member.roles.cache.has(ALLOWED_ROLE_ID)) {
+      return interaction.reply({
+        content: '❌ No tienes permiso para usar este comando.',
+        ephemeral: true
+      });
+    }
+
     const user = interaction.options.getUser('usuario');
 
     const data = loadData();
@@ -192,6 +201,13 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (interaction.commandName === 'leaderboard') {
+
+    if (!interaction.member.roles.cache.has(ALLOWED_ROLE_ID)) {
+      return interaction.reply({
+        content: '❌ No tienes permiso para usar este comando.',
+        ephemeral: true
+      });
+    }
 
     const data = loadData();
 
