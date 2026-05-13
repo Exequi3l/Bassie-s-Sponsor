@@ -30,6 +30,7 @@ app.listen(process.env.PORT || 3000, () => {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = "1497767350211186960";
 
 if (!TOKEN || !CLIENT_ID) {
   console.error('Faltan variables de entorno');
@@ -103,14 +104,14 @@ function spawnChubby(client) {
   });
 }
 
-// ───────── SLASH COMMANDS ─────────
+// ───────── SLASH COMMANDS (FIXED) ─────────
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
     await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       {
         body: [
           new SlashCommandBuilder()
@@ -120,7 +121,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       }
     );
 
-    console.log('Comandos registrados');
+    console.log('Comandos registrados en GUILD');
   } catch (err) {
     console.error(err);
   }
