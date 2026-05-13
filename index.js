@@ -25,7 +25,7 @@ app.listen(process.env.PORT || 3000, () => {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-const ALLOWED_ROLE_ID = '1498825341718761563';
+const ALLOWED_ROLE_ID = '1498054885663441108';
 
 if (!TOKEN) {
   console.error('TOKEN no definido');
