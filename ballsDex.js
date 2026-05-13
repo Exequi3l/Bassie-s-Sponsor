@@ -134,7 +134,7 @@ client.once('ready', () => {
 
   setInterval(() => {
     spawnChubby(client);
-  }, 60000);
+  }, 5000);
 });
 
 // ───────── INTERACTIONS ─────────
