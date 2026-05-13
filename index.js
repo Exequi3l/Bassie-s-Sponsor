@@ -9,7 +9,8 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   REST,
-  Routes
+  Routes,
+  PermissionFlagsBits
 } = require('discord.js');
 
 const app = express();
@@ -25,15 +26,11 @@ app.listen(process.env.PORT || 3000, () => {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-const ALLOWED_ROLE_ID = '1498054885663441108';
+// 👇 ROLE STAFF
+const ALLOWED_ROLE_ID = '1498825341718761563';
 
-if (!TOKEN) {
-  console.error('TOKEN no definido');
-  process.exit(1);
-}
-
-if (!CLIENT_ID) {
-  console.error('CLIENT_ID no definido');
+if (!TOKEN || !CLIENT_ID) {
+  console.error('Faltan variables de entorno');
   process.exit(1);
 }
 
@@ -58,153 +55,144 @@ const client = new Client({
   ]
 });
 
+// ─────────────────────────────
+// COMMANDS
+// ─────────────────────────────
+
 const commands = [
-
-  new SlashCommandBuilder()
-    .setName('sponsor')
-    .setDescription('Muestra el canal de YouTube'),
-
   new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Ver historial de joins y leaves')
-    .addUserOption(option =>
-      option
-        .setName('usuario')
-        .setDescription('Usuario a revisar')
+    .setDescription('Ver historial de un usuario')
+    .addUserOption(opt =>
+      opt.setName('usuario')
+        .setDescription('Usuario')
         .setRequired(true)
-    ),
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ViewChannel),
 
   new SlashCommandBuilder()
     .setName('leaderboard')
-    .setDescription('Top 10 usuarios con más leaves')
+    .setDescription('Top 10 más leaves')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ViewChannel)
+].map(c => c.toJSON());
 
-].map(command => command.toJSON());
+// ─────────────────────────────
+// REGISTER COMMANDS
+// ─────────────────────────────
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
-
   try {
-
     console.log('Registrando comandos...');
-
     await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-
-    console.log('Comandos registrados.');
-
+    console.log('Comandos listos.');
   } catch (err) {
     console.error(err);
   }
-
 })();
+
+// ─────────────────────────────
+// READY
+// ─────────────────────────────
 
 client.once('ready', () => {
   console.log(`${client.user.tag} online.`);
 });
 
-client.on('guildMemberAdd', member => {
+// ─────────────────────────────
+// TRACK JOINS / LEAVES
+// ─────────────────────────────
 
+client.on('guildMemberAdd', member => {
   const data = loadData();
 
   if (!data[member.id]) {
-    data[member.id] = {
-      joins: 0,
-      leaves: 0
-    };
+    data[member.id] = { joins: 0, leaves: 0 };
   }
 
-  data[member.id].joins += 1;
-
+  data[member.id].joins++;
   saveData(data);
 });
 
 client.on('guildMemberRemove', member => {
-
   const data = loadData();
 
   if (!data[member.id]) {
-    data[member.id] = {
-      joins: 0,
-      leaves: 0
-    };
+    data[member.id] = { joins: 0, leaves: 0 };
   }
 
-  data[member.id].leaves += 1;
-
+  data[member.id].leaves++;
   saveData(data);
 });
 
-client.on('interactionCreate', async interaction => {
+// ─────────────────────────────
+// PERMISSION CHECK
+// ─────────────────────────────
 
+function isAllowed(interaction) {
+  const isOwner = interaction.guild.ownerId === interaction.user.id;
+  const hasRole = interaction.member.roles.cache.has(ALLOWED_ROLE_ID);
+  return isOwner || hasRole;
+}
+
+// ─────────────────────────────
+// COMMANDS LOGIC
+// ─────────────────────────────
+
+client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName === 'sponsor') {
-
-    const embed = new EmbedBuilder()
-      .setTitle('🍪 Canal Oficial')
-      .setDescription(
-        'La Choza de las Canastas tiene un canal de YouTube.\n\nHaz clic abajo para verlo.'
-      )
-      .setColor('#FF0000');
-
-    return interaction.reply({
-      embeds: [embed]
-    });
-  }
-
+  // REGISTER
   if (interaction.commandName === 'register') {
 
-    if (!interaction.member.roles.cache.has(ALLOWED_ROLE_ID)) {
+    if (!isAllowed(interaction)) {
       return interaction.reply({
-        content: '❌ No tienes permiso para usar este comando.',
+        content: '❌ No tienes permiso.',
         ephemeral: true
       });
     }
 
     const user = interaction.options.getUser('usuario');
-
     const data = loadData();
 
-    const userData = data[user.id] || {
-      joins: 0,
-      leaves: 0
-    };
+    const info = data[user.id] || { joins: 0, leaves: 0 };
 
     const embed = new EmbedBuilder()
-      .setTitle('📋 User Register')
-      .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+      .setTitle('📊 Registro de Usuario')
+      .setThumbnail(user.displayAvatarURL())
       .addFields(
         {
-          name: 'User',
+          name: 'Usuario',
           value: `${user} | \`${user.id}\``
         },
         {
-          name: 'Joins of user',
-          value: `${userData.joins}`,
+          name: 'Joins',
+          value: `${info.joins}`,
           inline: true
         },
         {
-          name: 'Leaves of user',
-          value: `${userData.leaves}`,
+          name: 'Leaves',
+          value: `${info.leaves}`,
           inline: true
         }
       )
-      .setColor('#5865F2')
-      .setTimestamp();
+      .setColor('#5865F2');
 
     return interaction.reply({
       embeds: [embed]
     });
   }
 
+  // LEADERBOARD
   if (interaction.commandName === 'leaderboard') {
 
-    if (!interaction.member.roles.cache.has(ALLOWED_ROLE_ID)) {
+    if (!isAllowed(interaction)) {
       return interaction.reply({
-        content: '❌ No tienes permiso para usar este comando.',
+        content: '❌ No tienes permiso.',
         ephemeral: true
       });
     }
@@ -215,27 +203,17 @@ client.on('interactionCreate', async interaction => {
       .sort((a, b) => b[1].leaves - a[1].leaves)
       .slice(0, 10);
 
-    let description = '';
+    let desc = '';
 
-    for (let i = 0; i < sorted.length; i++) {
-
-      const [userId, stats] = sorted[i];
-
-      description +=
-        `**#${i + 1}** <@${userId}> | \`${userId}\`\n` +
-        `Leaves: **${stats.leaves}**\n\n`;
-    }
-
-    if (!description) {
-      description = 'No hay datos registrados.';
-    }
+    sorted.forEach((x, i) => {
+      desc += `**#${i + 1}** <@${x[0]}> | \`${x[0]}\`\nLeaves: **${x[1].leaves}**\n\n`;
+    });
 
     const embed = new EmbedBuilder()
-      .setTitle('🏆 Leaves Leaderboard')
-      .setDescription(description)
+      .setTitle('🏆 Top Leaves')
+      .setDescription(desc || 'Sin datos')
       .setColor('#FF0000')
-      .setThumbnail(client.user.displayAvatarURL())
-      .setTimestamp();
+      .setThumbnail(client.user.displayAvatarURL());
 
     return interaction.reply({
       embeds: [embed]
