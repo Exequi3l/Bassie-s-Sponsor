@@ -30,7 +30,12 @@ app.listen(process.env.PORT || 3000, () => {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+
+// ID DEL SERVIDOR
 const GUILD_ID = "1497767350211186960";
+
+// ID DEL CANAL DONDE APARECEN LOS CHUBBYS
+const SPAWN_CHANNEL_ID = "1497767351041654896";
 
 if (!TOKEN || !CLIENT_ID) {
   console.error('Faltan variables de entorno');
@@ -56,10 +61,12 @@ function saveData(data) {
 // ───────── CLIENT ─────────
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [
+    GatewayIntentBits.Guilds
+  ]
 });
 
-// ───────── CHUBBYS (SOLO BOXTEN) ─────────
+// ───────── CHUBBYS ─────────
 
 const ITEMS = [
   {
@@ -75,41 +82,58 @@ let claimed = false;
 
 // ───────── SPAWN ─────────
 
-function spawnChubby(client) {
+async function spawnChubby(client) {
+
+  console.log("Intentando spawn...");
 
   const item = ITEMS[0];
 
   currentSpawn = item;
   claimed = false;
 
-  const channel = client.channels.cache.get("1497767351041654896");
-  if (!channel) return;
+  try {
 
-  const embed = new EmbedBuilder()
-    .setTitle("Un Chubby mágico ha aparecido...")
-    .setDescription("Haz click en el botón para capturarlo antes de que desaparezca!")
-    .setImage(item.image)
-    .setColor("#ff66cc");
+    // FETCH REAL DEL CANAL
+    const channel = await client.channels.fetch(SPAWN_CHANNEL_ID);
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("claim_chubby")
-      .setLabel("Capturar")
-      .setStyle(ButtonStyle.Success)
-  );
+    if (!channel) {
+      console.log("Canal no encontrado");
+      return;
+    }
 
-  channel.send({
-    embeds: [embed],
-    components: [row]
-  });
+    const embed = new EmbedBuilder()
+      .setTitle("Un Chubby mágico ha aparecido...")
+      .setDescription("Haz click en el botón para capturarlo antes de que desaparezca!")
+      .setImage(item.image)
+      .setColor("#ff66cc");
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("claim_chubby")
+        .setLabel("Capturar")
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await channel.send({
+      embeds: [embed],
+      components: [row]
+    });
+
+    console.log("Chubby enviado correctamente");
+
+  } catch (err) {
+    console.error("Error enviando chubby:", err);
+  }
 }
 
-// ───────── SLASH COMMANDS (FIXED) ─────────
+// ───────── SLASH COMMANDS ─────────
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
+
   try {
+
     await rest.put(
       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       {
@@ -122,19 +146,29 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
     );
 
     console.log('Comandos registrados en GUILD');
+
   } catch (err) {
     console.error(err);
   }
+
 })();
 
 // ───────── READY ─────────
 
-client.once('ready', () => {
+client.once('ready', async () => {
+
   console.log(`${client.user.tag} online`);
 
-  setInterval(() => {
-    spawnChubby(client);
-  }, 5000);
+  // SPAWN INSTANTÁNEO
+  await spawnChubby(client);
+
+  console.log("Primer Chubby enviado");
+
+  // SPAWNS AUTOMÁTICOS
+  setInterval(async () => {
+    await spawnChubby(client);
+  }, 30000); // cada 30 segundos
+
 });
 
 // ───────── INTERACTIONS ─────────
@@ -142,7 +176,10 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
 
   // ───── BUTTON ─────
-  if (interaction.isButton() && interaction.customId === 'claim_chubby') {
+  if (
+    interaction.isButton() &&
+    interaction.customId === 'claim_chubby'
+  ) {
 
     if (!currentSpawn || claimed) {
       return interaction.reply({
@@ -168,8 +205,11 @@ client.on('interactionCreate', async interaction => {
     return interaction.showModal(modal);
   }
 
-  // ───── MODAL CAPTURA ─────
-  if (interaction.isModalSubmit() && interaction.customId === 'chubby_modal') {
+  // ───── MODAL ─────
+  if (
+    interaction.isModalSubmit() &&
+    interaction.customId === 'chubby_modal'
+  ) {
 
     if (!currentSpawn || claimed) {
       return interaction.reply({
@@ -178,9 +218,13 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    const input = interaction.fields.getTextInputValue('chubby_name');
+    const input =
+      interaction.fields.getTextInputValue('chubby_name');
 
-    if (input.toLowerCase() !== currentSpawn.name.toLowerCase()) {
+    if (
+      input.toLowerCase() !==
+      currentSpawn.name.toLowerCase()
+    ) {
       return interaction.reply({
         content: "❌ Nombre incorrecto del chubby.",
         ephemeral: true
@@ -191,10 +235,13 @@ client.on('interactionCreate', async interaction => {
     const userId = interaction.user.id;
 
     if (!data[userId]) {
-      data[userId] = { collection: [] };
+      data[userId] = {
+        collection: []
+      };
     }
 
     data[userId].collection.push(currentSpawn.id);
+
     saveData(data);
 
     claimed = true;
@@ -205,9 +252,13 @@ client.on('interactionCreate', async interaction => {
   }
 
   // ───── COLECCION ─────
-  if (interaction.isChatInputCommand() && interaction.commandName === 'coleccion') {
+  if (
+    interaction.isChatInputCommand() &&
+    interaction.commandName === 'coleccion'
+  ) {
 
     const data = loadData();
+
     const user = data[interaction.user.id];
 
     if (!user || !user.collection.length) {
@@ -218,16 +269,24 @@ client.on('interactionCreate', async interaction => {
     }
 
     const totalUnique = ITEMS.length;
+
     const ownedUnique = 1;
 
-    const percent = ((ownedUnique / totalUnique) * 100).toFixed(1);
+    const percent = (
+      (ownedUnique / totalUnique) * 100
+    ).toFixed(1);
 
-    let text = "📦 **Tu colección de chubbys:**\n\n";
+    let text =
+      "📦 **Tu colección de chubbys:**\n\n";
 
     text += `📦 Boxten x${user.collection.length}\n`;
-    text += `\n📊 Llevas un ${percent}% de la colección total`;
 
-    return interaction.reply({ content: text });
+    text +=
+      `\n📊 Llevas un ${percent}% de la colección total`;
+
+    return interaction.reply({
+      content: text
+    });
   }
 
 });
