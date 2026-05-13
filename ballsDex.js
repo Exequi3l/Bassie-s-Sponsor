@@ -58,20 +58,14 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// ───────── CHUBBYS ─────────
+// ───────── CHUBBYS (SOLO BOXTEN) ─────────
 
 const ITEMS = [
   {
-    id: "chubby_blue",
-    name: "Chubby Azul",
-    emoji: "🔵",
-    image: "https://i.imgur.com/example.png"
-  },
-  {
-    id: "chubby_red",
-    name: "Chubby Rojo",
-    emoji: "🔴",
-    image: "https://i.imgur.com/example2.png"
+    id: "boxten",
+    name: "Boxten",
+    emoji: "📦",
+    image: "https://raw.githubusercontent.com/Exequi3l/Chubbys-Assets/main/Boxten.png"
   }
 ];
 
@@ -82,7 +76,7 @@ let claimed = false;
 
 function spawnChubby(client) {
 
-  const item = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+  const item = ITEMS[0]; // solo Boxten
 
   currentSpawn = item;
   claimed = false;
@@ -209,7 +203,7 @@ client.on('interactionCreate', async interaction => {
     claimed = true;
 
     return interaction.reply({
-      content: `🎉 ¡Capturaste a **${currentSpawn.name}**!`
+      content: `🎉 ¡Capturaste a **Boxten**!`
     });
   }
 
@@ -221,7 +215,7 @@ client.on('interactionCreate', async interaction => {
 
     if (!user || !user.collection.length) {
       return interaction.reply({
-        content: "📦 No tienes chubbies aún.",
+        content: "📦 No tienes chubbys aún.",
         ephemeral: true
       });
     }
@@ -229,7 +223,7 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({
       content:
         `📦 Tu colección:\n` +
-        user.collection.map(x => `- ${x}`).join('\n')
+        user.collection.map(x => `- Boxten`).join('\n')
     });
   }
 
@@ -247,21 +241,13 @@ client.on('interactionCreate', async interaction => {
     }
 
     const totalUnique = ITEMS.length;
-    const ownedUnique = [...new Set(user.collection)].length;
+    const ownedUnique = 1;
 
     const percent = ((ownedUnique / totalUnique) * 100).toFixed(1);
 
-    let counts = {};
-    for (const id of user.collection) {
-      counts[id] = (counts[id] || 0) + 1;
-    }
-
     let text = "📦 **Tu colección de chubbys:**\n\n";
 
-    for (const [id, count] of Object.entries(counts)) {
-      const item = ITEMS.find(x => x.id === id);
-      text += `${item?.emoji || "❓"} **${item?.name || id}** x${count}\n`;
-    }
+    text += `📦 Boxten x${user.collection.length}\n`;
 
     text += `\n📊 Llevas un ${percent}% de la colección total`;
 
