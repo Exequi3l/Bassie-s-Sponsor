@@ -14,7 +14,7 @@ const {
   TextInputStyle,
   EmbedBuilder,
   REST,
-  Routes,
+ Routes,
   SlashCommandBuilder
 } = require('discord.js');
 
@@ -84,7 +84,7 @@ let claimed = false;
 
 async function spawnChubby(client) {
 
-  console.log("Intentando spawn...");
+  console.log("========== SPAWN ==========");
 
   const item = ITEMS[0];
 
@@ -93,17 +93,22 @@ async function spawnChubby(client) {
 
   try {
 
-    // FETCH REAL DEL CANAL
+    console.log("Buscando canal...");
+
     const channel = await client.channels.fetch(SPAWN_CHANNEL_ID);
 
     if (!channel) {
-      console.log("Canal no encontrado");
+      console.log("❌ Canal no encontrado");
       return;
     }
 
+    console.log(`✅ Canal encontrado: ${channel.name}`);
+
     const embed = new EmbedBuilder()
       .setTitle("Un Chubby mágico ha aparecido...")
-      .setDescription("Haz click en el botón para capturarlo antes de que desaparezca!")
+      .setDescription(
+        "Haz click en el botón para capturarlo antes de que desaparezca!"
+      )
       .setImage(item.image)
       .setColor("#ff66cc");
 
@@ -114,15 +119,20 @@ async function spawnChubby(client) {
         .setStyle(ButtonStyle.Success)
     );
 
+    console.log("Enviando chubby...");
+
     await channel.send({
       embeds: [embed],
       components: [row]
     });
 
-    console.log("Chubby enviado correctamente");
+    console.log("✅ Chubby enviado correctamente");
 
   } catch (err) {
-    console.error("Error enviando chubby:", err);
+
+    console.error("❌ ERROR EN SPAWN:");
+    console.error(err);
+
   }
 }
 
@@ -134,21 +144,31 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
   try {
 
+    console.log("Registrando comandos...");
+
     await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      Routes.applicationGuildCommands(
+        CLIENT_ID,
+        GUILD_ID
+      ),
       {
         body: [
           new SlashCommandBuilder()
             .setName('coleccion')
-            .setDescription('Ver colección avanzada de chubbys')
+            .setDescription(
+              'Ver colección avanzada de chubbys'
+            )
         ].map(c => c.toJSON())
       }
     );
 
-    console.log('Comandos registrados en GUILD');
+    console.log('✅ Comandos registrados');
 
   } catch (err) {
+
+    console.error("❌ Error registrando comandos:");
     console.error(err);
+
   }
 
 })();
@@ -157,17 +177,50 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 client.once('ready', async () => {
 
-  console.log(`${client.user.tag} online`);
+  console.log("========== BOT READY ==========");
+  console.log(`Conectado como ${client.user.tag}`);
 
-  // SPAWN INSTANTÁNEO
-  await spawnChubby(client);
+  try {
 
-  console.log("Primer Chubby enviado");
+    console.log("Buscando canal manualmente...");
 
-  // SPAWNS AUTOMÁTICOS
-  setInterval(async () => {
+    const testChannel =
+      await client.channels.fetch(SPAWN_CHANNEL_ID);
+
+    console.log("CANAL ENCONTRADO:");
+    console.log(testChannel?.name);
+
+    if (!testChannel) {
+      console.log("❌ No se encontró el canal");
+      return;
+    }
+
+    console.log("Enviando mensaje de prueba...");
+
+    await testChannel.send(
+      "✅ TEST DEL BOT FUNCIONANDO"
+    );
+
+    console.log("✅ Mensaje enviado correctamente");
+
+    // SPAWN INSTANTÁNEO
     await spawnChubby(client);
-  }, 30000); // cada 30 segundos
+
+    console.log("✅ Primer chubby enviado");
+
+    // SPAWNS AUTOMÁTICOS
+    setInterval(async () => {
+
+      await spawnChubby(client);
+
+    }, 30000);
+
+  } catch (err) {
+
+    console.error("❌ ERROR READY:");
+    console.error(err);
+
+  }
 
 });
 
@@ -183,7 +236,8 @@ client.on('interactionCreate', async interaction => {
 
     if (!currentSpawn || claimed) {
       return interaction.reply({
-        content: "❌ Este chubby ya fue capturado.",
+        content:
+          "❌ Este chubby ya fue capturado.",
         ephemeral: true
       });
     }
@@ -219,19 +273,23 @@ client.on('interactionCreate', async interaction => {
     }
 
     const input =
-      interaction.fields.getTextInputValue('chubby_name');
+      interaction.fields.getTextInputValue(
+        'chubby_name'
+      );
 
     if (
       input.toLowerCase() !==
       currentSpawn.name.toLowerCase()
     ) {
       return interaction.reply({
-        content: "❌ Nombre incorrecto del chubby.",
+        content:
+          "❌ Nombre incorrecto del chubby.",
         ephemeral: true
       });
     }
 
     const data = loadData();
+
     const userId = interaction.user.id;
 
     if (!data[userId]) {
@@ -240,14 +298,17 @@ client.on('interactionCreate', async interaction => {
       };
     }
 
-    data[userId].collection.push(currentSpawn.id);
+    data[userId].collection.push(
+      currentSpawn.id
+    );
 
     saveData(data);
 
     claimed = true;
 
     return interaction.reply({
-      content: `🎉 ¡Capturaste a **Boxten**!`
+      content:
+        `🎉 ¡Capturaste a **Boxten**!`
     });
   }
 
@@ -259,11 +320,16 @@ client.on('interactionCreate', async interaction => {
 
     const data = loadData();
 
-    const user = data[interaction.user.id];
+    const user =
+      data[interaction.user.id];
 
-    if (!user || !user.collection.length) {
+    if (
+      !user ||
+      !user.collection.length
+    ) {
       return interaction.reply({
-        content: "📦 No tienes chubbys aún.",
+        content:
+          "📦 No tienes chubbys aún.",
         ephemeral: true
       });
     }
@@ -279,7 +345,8 @@ client.on('interactionCreate', async interaction => {
     let text =
       "📦 **Tu colección de chubbys:**\n\n";
 
-    text += `📦 Boxten x${user.collection.length}\n`;
+    text +=
+      `📦 Boxten x${user.collection.length}\n`;
 
     text +=
       `\n📊 Llevas un ${percent}% de la colección total`;
@@ -290,5 +357,7 @@ client.on('interactionCreate', async interaction => {
   }
 
 });
+
+// ───────── LOGIN ─────────
 
 client.login(TOKEN);
