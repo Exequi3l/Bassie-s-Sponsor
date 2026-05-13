@@ -81,7 +81,8 @@ function spawnChubby(client) {
   currentSpawn = item;
   claimed = false;
 
-  const channel = client.channels.cache.find(c => c.isTextBased());
+  // 🔥 CANAL FIJO
+  const channel = client.channels.cache.get("1497767351041654896");
   if (!channel) return;
 
   const embed = new EmbedBuilder()
@@ -223,7 +224,7 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({
       content:
         `📦 Tu colección:\n` +
-        user.collection.map(x => `- Boxten`).join('\n')
+        user.collection.map(() => `- Boxten`).join('\n')
     });
   }
 
@@ -240,15 +241,11 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    const totalUnique = ITEMS.length;
-    const ownedUnique = 1;
-
-    const percent = ((ownedUnique / totalUnique) * 100).toFixed(1);
+    const owned = user.collection.length;
+    const percent = "100.0";
 
     let text = "📦 **Tu colección de chubbys:**\n\n";
-
-    text += `📦 Boxten x${user.collection.length}\n`;
-
+    text += `📦 Boxten x${owned}\n`;
     text += `\n📊 Llevas un ${percent}% de la colección total`;
 
     return interaction.reply({ content: text });
