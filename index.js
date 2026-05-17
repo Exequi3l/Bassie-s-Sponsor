@@ -54,7 +54,7 @@ const SAPPHIRE_LOG_CHANNEL =
 
 // logs antiguos a analizar
 
-const MAX_OLD_MESSAGES = 3000;
+const MAX_OLD_MESSAGES = 5000;
 
 // ─────────────────────────────
 // DATA
@@ -469,7 +469,7 @@ async function importOldLogs() {
     // evitar que Render lo mate
 
     await new Promise(resolve =>
-      setTimeout(resolve, 2000)
+      setTimeout(resolve, 3000)
     );
   }
 
