@@ -9,7 +9,8 @@ const {
   SlashCommandBuilder,
   REST,
   Routes,
-  EmbedBuilder
+  EmbedBuilder,
+  PermissionsBitField
 } = require('discord.js');
 
 // ─────────────────────────────
@@ -34,7 +35,7 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
 if (!TOKEN || !CLIENT_ID) {
-  console.error('Faltan variables de entorno');
+  console.error('❌ Faltan variables TOKEN o CLIENT_ID');
   process.exit(1);
 }
 
@@ -116,7 +117,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName('register')
     .setDescription(
-      'Ver historial joins/leaves'
+      'Ver joins/leaves de un usuario'
     )
     .addUserOption(opt =>
       opt
@@ -146,7 +147,7 @@ const rest =
   try {
 
     console.log(
-      'Registrando comandos...'
+      '📌 Registrando comandos...'
     );
 
     await rest.put(
@@ -159,12 +160,15 @@ const rest =
     );
 
     console.log(
-      'Comandos registrados.'
+      '✅ Comandos registrados.'
     );
 
   } catch (err) {
 
-    console.error(err);
+    console.error(
+      '❌ Error registrando comandos:',
+      err
+    );
   }
 })();
 
@@ -176,12 +180,10 @@ function extractText(message) {
 
   let text = '';
 
-  // CONTENT
   if (message.content) {
     text += message.content + ' ';
   }
 
-  // EMBEDS
   for (const embed of message.embeds) {
 
     if (embed.title)
@@ -223,8 +225,7 @@ async function processLogMessage(message) {
 
   let userId = null;
 
-  // PRIORIDAD 1:
-  // mentions reales
+  // mention real
 
   const mentionedUser =
     message.mentions.users.first();
@@ -233,8 +234,7 @@ async function processLogMessage(message) {
     userId = mentionedUser.id;
   }
 
-  // PRIORIDAD 2:
-  // detectar IDs cerca de user/member/id
+  // buscar ID cerca de palabras
 
   if (!userId) {
 
@@ -247,7 +247,6 @@ async function processLogMessage(message) {
     }
   }
 
-  // PRIORIDAD 3:
   // detectar <@id>
 
   if (!userId) {
@@ -264,9 +263,7 @@ async function processLogMessage(message) {
 
   if (!userId) return;
 
-  // ─────────────────────────
-  // SOLO SI EXISTE EN SERVER
-  // ─────────────────────────
+  // verificar miembro
 
   let member = null;
 
@@ -282,12 +279,10 @@ async function processLogMessage(message) {
     return;
   }
 
-  // ignorar usuarios inexistentes
-
   if (!member) {
 
     console.log(
-      `IGNORADO ${userId}`
+      `⚠️ Ignorado ${userId}`
     );
 
     return;
@@ -305,14 +300,12 @@ async function processLogMessage(message) {
     text.includes('left') ||
     text.includes('member left');
 
-  // evitar dobles raros
-
   if (isJoin && !isLeave) {
 
     data[userId].joins++;
 
     console.log(
-      `JOIN SAPPHIRE -> ${member.user.tag}`
+      `📥 JOIN SAPPHIRE -> ${member.user.tag}`
     );
   }
 
@@ -321,7 +314,7 @@ async function processLogMessage(message) {
     data[userId].leaves++;
 
     console.log(
-      `LEAVE SAPPHIRE -> ${member.user.tag}`
+      `📤 LEAVE SAPPHIRE -> ${member.user.tag}`
     );
   }
 
@@ -334,21 +327,31 @@ async function processLogMessage(message) {
 }
 
 // ─────────────────────────────
-// NUEVOS LOGS
+// LISTEN NEW LOGS
 // ─────────────────────────────
 
 client.on(
   'messageCreate',
   async message => {
 
-    await processLogMessage(
-      message
-    );
+    try {
+
+      await processLogMessage(
+        message
+      );
+
+    } catch (err) {
+
+      console.error(
+        '❌ Error procesando log:',
+        err
+      );
+    }
   }
 );
 
 // ─────────────────────────────
-// TRACK REAL
+// TRACK REAL EVENTS
 // ─────────────────────────────
 
 client.on(
@@ -364,7 +367,7 @@ client.on(
     saveData(data);
 
     console.log(
-      `REAL JOIN -> ${member.user.tag}`
+      `📥 REAL JOIN -> ${member.user.tag}`
     );
   }
 );
@@ -382,7 +385,7 @@ client.on(
     saveData(data);
 
     console.log(
-      `REAL LEAVE -> ${member.user.tag}`
+      `📤 REAL LEAVE -> ${member.user.tag}`
     );
   }
 );
@@ -394,18 +397,53 @@ client.on(
 async function importOldLogs() {
 
   console.log(
-    'Escaneando logs viejos...'
+    '🔎 Escaneando logs viejos...'
   );
 
-  const channel =
-    await client.channels.fetch(
-      SAPPHIRE_LOG_CHANNEL
+  let channel;
+
+  try {
+
+    channel =
+      await client.channels.fetch(
+        SAPPHIRE_LOG_CHANNEL
+      );
+
+  } catch (err) {
+
+    console.error(
+      '❌ No pude obtener canal:',
+      err
     );
+
+    return;
+  }
 
   if (!channel) {
 
     console.log(
-      'Canal no encontrado.'
+      '❌ Canal no encontrado.'
+    );
+
+    return;
+  }
+
+  const perms =
+    channel.permissionsFor(
+      client.user
+    );
+
+  if (
+    !perms.has(
+      PermissionsBitField.Flags.ViewChannel
+    ) ||
+    !perms.has(
+      PermissionsBitField.Flags.ReadMessageHistory
+    )
+  ) {
+
+    console.log(
+      '❌ Faltan permisos en canal.'
     );
 
     return;
@@ -416,21 +454,45 @@ async function importOldLogs() {
 
   while (true) {
 
-    const messages =
-      await channel.messages.fetch({
-        limit: 100,
-        before:
-          lastId || undefined
-      });
+    let messages;
+
+    try {
+
+      messages =
+        await channel.messages.fetch({
+          limit: 100,
+          before:
+            lastId || undefined
+        });
+
+    } catch (err) {
+
+      console.error(
+        '❌ Error obteniendo mensajes:',
+        err
+      );
+
+      break;
+    }
 
     if (!messages.size)
       break;
 
     for (const message of messages.values()) {
 
-      await processLogMessage(
-        message
-      );
+      try {
+
+        await processLogMessage(
+          message
+        );
+
+      } catch (err) {
+
+        console.error(
+          '❌ Error mensaje:',
+          err
+        );
+      }
 
       total++;
     }
@@ -439,12 +501,12 @@ async function importOldLogs() {
       messages.last().id;
 
     console.log(
-      `Mensajes analizados: ${total}`
+      `📄 Analizados: ${total}`
     );
   }
 
   console.log(
-    'Importación completada.'
+    '✅ Importación completada.'
   );
 }
 
@@ -611,11 +673,20 @@ client.once(
   async () => {
 
     console.log(
-      `${client.user.tag} online.`
+      `✅ ${client.user.tag} online.`
     );
 
-    // IMPORTAR LOGS VIEJOS
-    await importOldLogs();
+    try {
+
+      await importOldLogs();
+
+    } catch (err) {
+
+      console.error(
+        '❌ Error importando logs:',
+        err
+      );
+    }
   }
 );
 
