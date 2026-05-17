@@ -9,8 +9,7 @@ const {
   SlashCommandBuilder,
   REST,
   Routes,
-  EmbedBuilder,
-  PermissionsBitField
+  EmbedBuilder
 } = require('discord.js');
 
 // ─────────────────────────────
@@ -24,7 +23,7 @@ app.get('/', (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000, () => {
-  console.log('Servidor web iniciado');
+  console.log('🌐 Servidor web iniciado');
 });
 
 // ─────────────────────────────
@@ -35,7 +34,11 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
 if (!TOKEN || !CLIENT_ID) {
-  console.error('❌ Faltan variables TOKEN o CLIENT_ID');
+
+  console.error(
+    '❌ Faltan TOKEN o CLIENT_ID'
+  );
+
   process.exit(1);
 }
 
@@ -48,6 +51,9 @@ const ALLOWED_ROLE_ID =
 
 const SAPPHIRE_LOG_CHANNEL =
   '1406751369401991258';
+
+// máximo de mensajes viejos
+const MAX_OLD_MESSAGES = 1000;
 
 // ─────────────────────────────
 // DATA
@@ -117,7 +123,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName('register')
     .setDescription(
-      'Ver joins/leaves de un usuario'
+      'Ver historial joins/leaves'
     )
     .addUserOption(opt =>
       opt
@@ -209,7 +215,7 @@ function extractText(message) {
 }
 
 // ─────────────────────────────
-// PROCESS SAPPHIRE LOGS
+// PROCESS LOG MESSAGE
 // ─────────────────────────────
 
 async function processLogMessage(message) {
@@ -234,7 +240,7 @@ async function processLogMessage(message) {
     userId = mentionedUser.id;
   }
 
-  // buscar ID cerca de palabras
+  // detectar ID cerca de palabras
 
   if (!userId) {
 
@@ -263,7 +269,7 @@ async function processLogMessage(message) {
 
   if (!userId) return;
 
-  // verificar miembro
+  // SOLO miembros existentes
 
   let member = null;
 
@@ -305,7 +311,7 @@ async function processLogMessage(message) {
     data[userId].joins++;
 
     console.log(
-      `📥 JOIN SAPPHIRE -> ${member.user.tag}`
+      `📥 JOIN -> ${member.user.tag}`
     );
   }
 
@@ -314,7 +320,7 @@ async function processLogMessage(message) {
     data[userId].leaves++;
 
     console.log(
-      `📤 LEAVE SAPPHIRE -> ${member.user.tag}`
+      `📤 LEAVE -> ${member.user.tag}`
     );
   }
 
@@ -327,7 +333,7 @@ async function processLogMessage(message) {
 }
 
 // ─────────────────────────────
-// LISTEN NEW LOGS
+// ESCUCHAR NUEVOS LOGS
 // ─────────────────────────────
 
 client.on(
@@ -351,7 +357,7 @@ client.on(
 );
 
 // ─────────────────────────────
-// TRACK REAL EVENTS
+// TRACK REAL
 // ─────────────────────────────
 
 client.on(
@@ -412,7 +418,7 @@ async function importOldLogs() {
   } catch (err) {
 
     console.error(
-      '❌ No pude obtener canal:',
+      '❌ Error obteniendo canal:',
       err
     );
 
@@ -428,31 +434,12 @@ async function importOldLogs() {
     return;
   }
 
-  const perms =
-    channel.permissionsFor(
-      client.user
-    );
-
-  if (
-    !perms.has(
-      PermissionsBitField.Flags.ViewChannel
-    ) ||
-    !perms.has(
-      PermissionsBitField.Flags.ReadMessageHistory
-    )
-  ) {
-
-    console.log(
-      '❌ Faltan permisos en canal.'
-    );
-
-    return;
-  }
-
   let lastId = null;
   let total = 0;
 
-  while (true) {
+  while (
+    total < MAX_OLD_MESSAGES
+  ) {
 
     let messages;
 
@@ -495,13 +482,23 @@ async function importOldLogs() {
       }
 
       total++;
+
+      if (
+        total >=
+        MAX_OLD_MESSAGES
+      ) break;
     }
 
     lastId =
       messages.last().id;
 
     console.log(
-      `📄 Analizados: ${total}`
+      `📄 Analizados: ${total}/${MAX_OLD_MESSAGES}`
+    );
+
+    // pausa anti-crash
+    await new Promise(resolve =>
+      setTimeout(resolve, 1500)
     );
   }
 
@@ -676,17 +673,48 @@ client.once(
       `✅ ${client.user.tag} online.`
     );
 
-    try {
+    // esperar antes de escanear
+    setTimeout(async () => {
 
-      await importOldLogs();
+      try {
 
-    } catch (err) {
+        await importOldLogs();
 
-      console.error(
-        '❌ Error importando logs:',
-        err
-      );
-    }
+      } catch (err) {
+
+        console.error(
+          '❌ Error importando logs:',
+          err
+        );
+      }
+
+    }, 10000);
+  }
+);
+
+// ─────────────────────────────
+// ERRORES GLOBALES
+// ─────────────────────────────
+
+process.on(
+  'unhandledRejection',
+  err => {
+
+    console.error(
+      '❌ UnhandledRejection:',
+      err
+    );
+  }
+);
+
+process.on(
+  'uncaughtException',
+  err => {
+
+    console.error(
+      '❌ UncaughtException:',
+      err
+    );
   }
 );
 
