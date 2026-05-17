@@ -52,7 +52,6 @@ const ALLOWED_ROLE_ID =
 const SAPPHIRE_LOG_CHANNEL =
   '1406751369401991258';
 
-// máximo mensajes viejos
 const MAX_OLD_MESSAGES = 1000;
 
 // ─────────────────────────────
@@ -229,24 +228,16 @@ async function processLogMessage(message) {
 
   if (!text) return;
 
-  // detectar joins/leaves
+  // detectar joins/leaves sapphire
 
   const isJoin =
-    text.includes('joined') ||
-    text.includes('member joined');
+    text.includes('user joined');
 
   const isLeave =
-    text.includes('left') ||
-    text.includes('member left');
+    text.includes('user left');
 
-  // ignorar ambiguos
-
-  if (
-    (!isJoin && !isLeave) ||
-    (isJoin && isLeave)
-  ) {
+  if (!isJoin && !isLeave)
     return;
-  }
 
   let userId = null;
 
@@ -273,22 +264,28 @@ async function processLogMessage(message) {
     }
   }
 
-  // detectar ID cerca de palabras
+  // detectar ID: 123
 
   if (!userId) {
 
-    const match = text.match(
-      /(user|member|usuario)[^\d]{0,20}(\d{17,20})/i
-    );
+    const idMatch =
+      text.match(
+        /id:\s*(\d{17,20})/i
+      );
 
-    if (match) {
-      userId = match[2];
+    if (idMatch) {
+      userId = idMatch[1];
     }
   }
 
-  // evitar IDs random
+  if (!userId) {
 
-  if (!userId) return;
+    console.log(
+      '❌ No encontré ID'
+    );
+
+    return;
+  }
 
   const data = loadData();
 
@@ -340,46 +337,6 @@ client.on(
         err
       );
     }
-  }
-);
-
-// ─────────────────────────────
-// TRACK REAL EVENTS
-// ─────────────────────────────
-
-client.on(
-  'guildMemberAdd',
-  member => {
-
-    const data = loadData();
-
-    ensureUser(data, member.id);
-
-    data[member.id].joins++;
-
-    saveData(data);
-
-    console.log(
-      `📥 REAL JOIN -> ${member.user.tag}`
-    );
-  }
-);
-
-client.on(
-  'guildMemberRemove',
-  member => {
-
-    const data = loadData();
-
-    ensureUser(data, member.id);
-
-    data[member.id].leaves++;
-
-    saveData(data);
-
-    console.log(
-      `📤 REAL LEAVE -> ${member.user.tag}`
-    );
   }
 );
 
@@ -483,8 +440,6 @@ async function importOldLogs() {
       `📄 Analizados: ${total}/${MAX_OLD_MESSAGES}`
     );
 
-    // pausa anti crash
-
     await new Promise(resolve =>
       setTimeout(resolve, 1500)
     );
@@ -525,7 +480,7 @@ client.on(
       !interaction.isChatInputCommand()
     ) return;
 
-    // ───────── REGISTER ─────────
+    // REGISTER
 
     if (
       interaction.commandName ===
@@ -593,7 +548,7 @@ client.on(
       });
     }
 
-    // ───────── LEADERBOARD ─────────
+    // LEADERBOARD
 
     if (
       interaction.commandName ===
@@ -660,8 +615,6 @@ client.once(
     console.log(
       `✅ ${client.user.tag} online.`
     );
-
-    // esperar antes de escanear
 
     setTimeout(async () => {
 
