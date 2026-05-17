@@ -9,9 +9,12 @@ const {
   SlashCommandBuilder,
   REST,
   Routes,
-  PermissionFlagsBits,
   EmbedBuilder
 } = require('discord.js');
+
+// ─────────────────────────────
+// EXPRESS
+// ─────────────────────────────
 
 const app = express();
 
@@ -23,18 +26,27 @@ app.listen(process.env.PORT || 3000, () => {
   console.log('Servidor web iniciado');
 });
 
+// ─────────────────────────────
+// ENV
+// ─────────────────────────────
+
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-
-const ALLOWED_ROLE_ID = '1372698992239968326';
-
-// 👇 CANAL DE LOGS SAPPHIRE
-const SAPPHIRE_LOG_CHANNEL = '1406751369401991258';
 
 if (!TOKEN || !CLIENT_ID) {
   console.error('Faltan variables de entorno');
   process.exit(1);
 }
+
+// ─────────────────────────────
+// CONFIG
+// ─────────────────────────────
+
+const ALLOWED_ROLE_ID =
+  '1372698992239968326';
+
+const SAPPHIRE_LOG_CHANNEL =
+  '1406751369401991258';
 
 // ─────────────────────────────
 // DATA
@@ -47,11 +59,39 @@ if (!fs.existsSync(DATA_FILE)) {
 }
 
 function loadData() {
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+
+  try {
+
+    return JSON.parse(
+      fs.readFileSync(
+        DATA_FILE,
+        'utf8'
+      )
+    );
+
+  } catch {
+
+    return {};
+  }
 }
 
 function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+
+  fs.writeFileSync(
+    DATA_FILE,
+    JSON.stringify(data, null, 2)
+  );
+}
+
+function ensureUser(data, userId) {
+
+  if (!data[userId]) {
+
+    data[userId] = {
+      joins: 0,
+      leaves: 0
+    };
+  }
 }
 
 // ─────────────────────────────
@@ -75,7 +115,9 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Ver historial joins/leaves')
+    .setDescription(
+      'Ver historial joins/leaves'
+    )
     .addUserOption(opt =>
       opt
         .setName('usuario')
@@ -85,7 +127,9 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('leaderboard')
-    .setDescription('Top leaves')
+    .setDescription(
+      'Top leaves'
+    )
 
 ].map(c => c.toJSON());
 
@@ -93,22 +137,33 @@ const commands = [
 // REGISTER COMMANDS
 // ─────────────────────────────
 
-const rest = new REST({ version: '10' }).setToken(TOKEN);
+const rest =
+  new REST({ version: '10' })
+    .setToken(TOKEN);
 
 (async () => {
 
   try {
 
-    console.log('Registrando comandos...');
-
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: commands }
+    console.log(
+      'Registrando comandos...'
     );
 
-    console.log('Comandos registrados.');
+    await rest.put(
+      Routes.applicationCommands(
+        CLIENT_ID
+      ),
+      {
+        body: commands
+      }
+    );
+
+    console.log(
+      'Comandos registrados.'
+    );
 
   } catch (err) {
+
     console.error(err);
   }
 })();
@@ -121,29 +176,29 @@ function extractText(message) {
 
   let text = '';
 
+  // CONTENT
   if (message.content) {
     text += message.content + ' ';
   }
 
-  if (message.embeds.length > 0) {
+  // EMBEDS
+  for (const embed of message.embeds) {
 
-    for (const embed of message.embeds) {
+    if (embed.title)
+      text += embed.title + ' ';
 
-      if (embed.title)
-        text += embed.title + ' ';
+    if (embed.description)
+      text += embed.description + ' ';
 
-      if (embed.description)
-        text += embed.description + ' ';
+    if (embed.footer?.text)
+      text += embed.footer.text + ' ';
 
-      if (embed.footer?.text)
-        text += embed.footer.text + ' ';
+    if (embed.fields?.length) {
 
-      if (embed.fields?.length) {
+      for (const field of embed.fields) {
 
-        for (const field of embed.fields) {
-          text += field.name + ' ';
-          text += field.value + ' ';
-        }
+        text += field.name + ' ';
+        text += field.value + ' ';
       }
     }
   }
@@ -152,112 +207,185 @@ function extractText(message) {
 }
 
 // ─────────────────────────────
-// ANALIZAR MENSAJE
+// PROCESS SAPPHIRE LOGS
 // ─────────────────────────────
 
-function processLogMessage(message) {
+async function processLogMessage(message) {
 
-  if (message.channelId !== SAPPHIRE_LOG_CHANNEL)
-    return;
+  if (
+    message.channelId !==
+    SAPPHIRE_LOG_CHANNEL
+  ) return;
 
   const text = extractText(message);
 
   if (!text) return;
 
-  // Buscar IDs
-  const ids =
-    text.match(/\b\d{17,20}\b/g) || [];
+  let userId = null;
 
-  if (!ids.length) return;
+  // PRIORIDAD 1:
+  // mentions reales
+
+  const mentionedUser =
+    message.mentions.users.first();
+
+  if (mentionedUser) {
+    userId = mentionedUser.id;
+  }
+
+  // PRIORIDAD 2:
+  // detectar IDs cerca de user/member/id
+
+  if (!userId) {
+
+    const match = text.match(
+      /(user|member|id)[^\d]{0,15}(\d{17,20})/i
+    );
+
+    if (match) {
+      userId = match[2];
+    }
+  }
+
+  // PRIORIDAD 3:
+  // detectar <@id>
+
+  if (!userId) {
+
+    const mentionMatch =
+      text.match(
+        /<@!?(\d{17,20})>/
+      );
+
+    if (mentionMatch) {
+      userId = mentionMatch[1];
+    }
+  }
+
+  if (!userId) return;
+
+  // ─────────────────────────
+  // SOLO SI EXISTE EN SERVER
+  // ─────────────────────────
+
+  let member = null;
+
+  try {
+
+    member =
+      await message.guild.members
+        .fetch(userId)
+        .catch(() => null);
+
+  } catch {
+
+    return;
+  }
+
+  // ignorar usuarios inexistentes
+
+  if (!member) {
+
+    console.log(
+      `IGNORADO ${userId}`
+    );
+
+    return;
+  }
 
   const data = loadData();
 
-  for (const userId of ids) {
+  ensureUser(data, userId);
 
-    if (!data[userId]) {
-      data[userId] = {
-        joins: 0,
-        leaves: 0
-      };
-    }
+  const isJoin =
+    text.includes('joined') ||
+    text.includes('member joined');
 
-    // JOINS
-    if (
-      text.includes('joined') ||
-      text.includes('join') ||
-      text.includes('member joined')
-    ) {
+  const isLeave =
+    text.includes('left') ||
+    text.includes('member left');
 
-      data[userId].joins++;
+  // evitar dobles raros
 
-      console.log(
-        `JOIN detectado ${userId}`
-      );
-    }
+  if (isJoin && !isLeave) {
 
-    // LEAVES
-    if (
-      text.includes('left') ||
-      text.includes('leave') ||
-      text.includes('member left')
-    ) {
+    data[userId].joins++;
 
-      data[userId].leaves++;
+    console.log(
+      `JOIN SAPPHIRE -> ${member.user.tag}`
+    );
+  }
 
-      console.log(
-        `LEAVE detectado ${userId}`
-      );
-    }
+  else if (isLeave && !isJoin) {
+
+    data[userId].leaves++;
+
+    console.log(
+      `LEAVE SAPPHIRE -> ${member.user.tag}`
+    );
+  }
+
+  else {
+
+    return;
   }
 
   saveData(data);
 }
 
 // ─────────────────────────────
-// ESCUCHAR NUEVOS LOGS
+// NUEVOS LOGS
 // ─────────────────────────────
 
-client.on('messageCreate', processLogMessage);
+client.on(
+  'messageCreate',
+  async message => {
+
+    await processLogMessage(
+      message
+    );
+  }
+);
 
 // ─────────────────────────────
 // TRACK REAL
 // ─────────────────────────────
 
-client.on('guildMemberAdd', member => {
+client.on(
+  'guildMemberAdd',
+  member => {
 
-  const data = loadData();
+    const data = loadData();
 
-  if (!data[member.id]) {
-    data[member.id] = {
-      joins: 0,
-      leaves: 0
-    };
+    ensureUser(data, member.id);
+
+    data[member.id].joins++;
+
+    saveData(data);
+
+    console.log(
+      `REAL JOIN -> ${member.user.tag}`
+    );
   }
+);
 
-  data[member.id].joins++;
+client.on(
+  'guildMemberRemove',
+  member => {
 
-  saveData(data);
+    const data = loadData();
 
-  console.log(`REAL JOIN ${member.user.tag}`);
-});
+    ensureUser(data, member.id);
 
-client.on('guildMemberRemove', member => {
+    data[member.id].leaves++;
 
-  const data = loadData();
+    saveData(data);
 
-  if (!data[member.id]) {
-    data[member.id] = {
-      joins: 0,
-      leaves: 0
-    };
+    console.log(
+      `REAL LEAVE -> ${member.user.tag}`
+    );
   }
-
-  data[member.id].leaves++;
-
-  saveData(data);
-
-  console.log(`REAL LEAVE ${member.user.tag}`);
-});
+);
 
 // ─────────────────────────────
 // IMPORTAR LOGS VIEJOS
@@ -266,7 +394,7 @@ client.on('guildMemberRemove', member => {
 async function importOldLogs() {
 
   console.log(
-    'Escaneando logs viejos de Sapphire...'
+    'Escaneando logs viejos...'
   );
 
   const channel =
@@ -275,11 +403,15 @@ async function importOldLogs() {
     );
 
   if (!channel) {
-    console.log('Canal no encontrado');
+
+    console.log(
+      'Canal no encontrado.'
+    );
+
     return;
   }
 
-  let lastId;
+  let lastId = null;
   let total = 0;
 
   while (true) {
@@ -287,27 +419,32 @@ async function importOldLogs() {
     const messages =
       await channel.messages.fetch({
         limit: 100,
-        before: lastId
+        before:
+          lastId || undefined
       });
 
-    if (!messages.size) break;
+    if (!messages.size)
+      break;
 
     for (const message of messages.values()) {
 
-      processLogMessage(message);
+      await processLogMessage(
+        message
+      );
 
       total++;
     }
 
-    lastId = messages.last().id;
+    lastId =
+      messages.last().id;
 
     console.log(
-      `Mensajes escaneados: ${total}`
+      `Mensajes analizados: ${total}`
     );
   }
 
   console.log(
-    'Importación de logs completada.'
+    'Importación completada.'
   );
 }
 
@@ -330,136 +467,157 @@ function isAllowed(interaction) {
 }
 
 // ─────────────────────────────
-// COMMAND HANDLER
+// INTERACTIONS
 // ─────────────────────────────
 
-client.on('interactionCreate', async interaction => {
+client.on(
+  'interactionCreate',
+  async interaction => {
 
-  if (!interaction.isChatInputCommand())
-    return;
+    if (
+      !interaction.isChatInputCommand()
+    ) return;
 
-  // REGISTER
+    // ───────── REGISTER ─────────
 
-  if (interaction.commandName === 'register') {
+    if (
+      interaction.commandName ===
+      'register'
+    ) {
 
-    if (!isAllowed(interaction)) {
+      if (
+        !isAllowed(interaction)
+      ) {
+
+        return interaction.reply({
+          content:
+            '❌ Solo staff.',
+          ephemeral: true
+        });
+      }
+
+      const user =
+        interaction.options.getUser(
+          'usuario'
+        );
+
+      const data =
+        loadData();
+
+      const info =
+        data[user.id] || {
+          joins: 0,
+          leaves: 0
+        };
+
+      const embed =
+        new EmbedBuilder()
+          .setColor('#5865F2')
+          .setTitle(
+            '📊 Registro Usuario'
+          )
+          .setThumbnail(
+            user.displayAvatarURL()
+          )
+          .addFields(
+            {
+              name: '👤 Usuario',
+              value: user.tag
+            },
+            {
+              name: '📥 Joins',
+              value: `${info.joins}`,
+              inline: true
+            },
+            {
+              name: '📤 Leaves',
+              value: `${info.leaves}`,
+              inline: true
+            }
+          )
+          .setFooter({
+            text:
+              `ID: ${user.id}`
+          })
+          .setTimestamp();
 
       return interaction.reply({
-        content:
-          '❌ Solo staff puede usar esto.',
-        ephemeral: true
+        embeds: [embed]
       });
     }
 
-    const user =
-      interaction.options.getUser(
-        'usuario'
-      );
+    // ───────── LEADERBOARD ─────────
 
-    const data = loadData();
+    if (
+      interaction.commandName ===
+      'leaderboard'
+    ) {
 
-    const info = data[user.id] || {
-      joins: 0,
-      leaves: 0
-    };
+      if (
+        !isAllowed(interaction)
+      ) {
 
-    const embed = new EmbedBuilder()
-      .setColor('#5865F2')
-      .setTitle(
-        '📊 Registro de Usuario'
-      )
-      .setThumbnail(
-        user.displayAvatarURL()
-      )
-      .addFields(
-        {
-          name: '👤 Usuario',
-          value: user.tag
-        },
-        {
-          name: '📥 Joins',
-          value: `${info.joins}`,
-          inline: true
-        },
-        {
-          name: '📤 Leaves',
-          value: `${info.leaves}`,
-          inline: true
-        }
-      )
-      .setFooter({
-        text: `ID: ${user.id}`
-      })
-      .setTimestamp();
+        return interaction.reply({
+          content:
+            '❌ Solo staff.',
+          ephemeral: true
+        });
+      }
 
-    return interaction.reply({
-      embeds: [embed]
-    });
-  }
+      const data =
+        loadData();
 
-  // LEADERBOARD
+      const sorted =
+        Object.entries(data)
+          .sort(
+            (a, b) =>
+              b[1].leaves -
+              a[1].leaves
+          )
+          .slice(0, 10);
 
-  if (
-    interaction.commandName ===
-    'leaderboard'
-  ) {
+      const description =
+        sorted.length
+          ? sorted.map(
+              (u, i) =>
+                `#${i + 1} <@${u[0]}> — ${u[1].leaves} leaves`
+            ).join('\n')
+          : 'Sin datos';
 
-    if (!isAllowed(interaction)) {
+      const embed =
+        new EmbedBuilder()
+          .setColor('#ED4245')
+          .setTitle(
+            '🏆 Leaderboard Leaves'
+          )
+          .setDescription(
+            description
+          )
+          .setTimestamp();
 
       return interaction.reply({
-        content:
-          '❌ Solo staff puede usar esto.',
-        ephemeral: true
+        embeds: [embed]
       });
     }
-
-    const data = loadData();
-
-    const sorted =
-      Object.entries(data)
-        .sort(
-          (a, b) =>
-            b[1].leaves -
-            a[1].leaves
-        )
-        .slice(0, 10);
-
-    const desc = sorted
-      .map(
-        (u, i) =>
-          `#${i + 1} <@${u[0]}> — ${u[1].leaves} leaves`
-      )
-      .join('\n');
-
-    const embed = new EmbedBuilder()
-      .setColor('#ED4245')
-      .setTitle(
-        '🏆 Leaderboard Leaves'
-      )
-      .setDescription(
-        desc || 'Sin datos'
-      )
-      .setTimestamp();
-
-    return interaction.reply({
-      embeds: [embed]
-    });
   }
-});
+);
 
 // ─────────────────────────────
 // READY
 // ─────────────────────────────
 
-client.once('ready', async () => {
+client.once(
+  'ready',
+  async () => {
 
-  console.log(
-    `${client.user.tag} online.`
-  );
+    console.log(
+      `${client.user.tag} online.`
+    );
 
-  // ESCANEAR MENSAJES VIEJOS
-  await importOldLogs();
-});
+    // IMPORTAR LOGS VIEJOS
+    await importOldLogs();
+  }
+);
 
 // ─────────────────────────────
 // LOGIN
