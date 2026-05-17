@@ -52,7 +52,7 @@ const ALLOWED_ROLE_ID =
 const SAPPHIRE_LOG_CHANNEL =
   '1406751369401991258';
 
-// máximo de mensajes viejos
+// máximo mensajes viejos
 const MAX_OLD_MESSAGES = 1000;
 
 // ─────────────────────────────
@@ -229,6 +229,25 @@ async function processLogMessage(message) {
 
   if (!text) return;
 
+  // detectar joins/leaves
+
+  const isJoin =
+    text.includes('joined') ||
+    text.includes('member joined');
+
+  const isLeave =
+    text.includes('left') ||
+    text.includes('member left');
+
+  // ignorar ambiguos
+
+  if (
+    (!isJoin && !isLeave) ||
+    (isJoin && isLeave)
+  ) {
+    return;
+  }
+
   let userId = null;
 
   // mention real
@@ -238,19 +257,6 @@ async function processLogMessage(message) {
 
   if (mentionedUser) {
     userId = mentionedUser.id;
-  }
-
-  // detectar ID cerca de palabras
-
-  if (!userId) {
-
-    const match = text.match(
-      /(user|member|id)[^\d]{0,15}(\d{17,20})/i
-    );
-
-    if (match) {
-      userId = match[2];
-    }
   }
 
   // detectar <@id>
@@ -267,73 +273,54 @@ async function processLogMessage(message) {
     }
   }
 
-  if (!userId) return;
+  // detectar ID cerca de palabras
 
-  // SOLO miembros existentes
+  if (!userId) {
 
-  let member = null;
-
-  try {
-
-    member =
-      await message.guild.members
-        .fetch(userId)
-        .catch(() => null);
-
-  } catch {
-
-    return;
-  }
-
-  if (!member) {
-
-    console.log(
-      `⚠️ Ignorado ${userId}`
+    const match = text.match(
+      /(user|member|usuario)[^\d]{0,20}(\d{17,20})/i
     );
 
-    return;
+    if (match) {
+      userId = match[2];
+    }
   }
+
+  // evitar IDs random
+
+  if (!userId) return;
 
   const data = loadData();
 
   ensureUser(data, userId);
 
-  const isJoin =
-    text.includes('joined') ||
-    text.includes('member joined');
+  // JOIN
 
-  const isLeave =
-    text.includes('left') ||
-    text.includes('member left');
-
-  if (isJoin && !isLeave) {
+  if (isJoin) {
 
     data[userId].joins++;
 
     console.log(
-      `📥 JOIN -> ${member.user.tag}`
+      `📥 JOIN -> ${userId}`
     );
   }
 
-  else if (isLeave && !isJoin) {
+  // LEAVE
+
+  if (isLeave) {
 
     data[userId].leaves++;
 
     console.log(
-      `📤 LEAVE -> ${member.user.tag}`
+      `📤 LEAVE -> ${userId}`
     );
-  }
-
-  else {
-
-    return;
   }
 
   saveData(data);
 }
 
 // ─────────────────────────────
-// ESCUCHAR NUEVOS LOGS
+// NUEVOS LOGS
 // ─────────────────────────────
 
 client.on(
@@ -357,7 +344,7 @@ client.on(
 );
 
 // ─────────────────────────────
-// TRACK REAL
+// TRACK REAL EVENTS
 // ─────────────────────────────
 
 client.on(
@@ -496,7 +483,8 @@ async function importOldLogs() {
       `📄 Analizados: ${total}/${MAX_OLD_MESSAGES}`
     );
 
-    // pausa anti-crash
+    // pausa anti crash
+
     await new Promise(resolve =>
       setTimeout(resolve, 1500)
     );
@@ -674,6 +662,7 @@ client.once(
     );
 
     // esperar antes de escanear
+
     setTimeout(async () => {
 
       try {
