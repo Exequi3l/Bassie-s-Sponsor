@@ -28,7 +28,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 
 const ALLOWED_ROLE_ID = '1372698992239968326';
 
-// 👇 CANAL LOGS SAPPHIRE
+// 👇 CANAL DE LOGS SAPPHIRE
 const SAPPHIRE_LOG_CHANNEL = '1406751369401991258';
 
 if (!TOKEN || !CLIENT_ID) {
@@ -72,25 +72,21 @@ const client = new Client({
 // ─────────────────────────────
 
 const commands = [
+
   new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Ver historial de joins/leaves')
+    .setDescription('Ver historial joins/leaves')
     .addUserOption(opt =>
       opt
         .setName('usuario')
         .setDescription('Usuario')
         .setRequired(true)
-    )
-    .setDefaultMemberPermissions(
-      PermissionFlagsBits.ManageGuild
     ),
 
   new SlashCommandBuilder()
     .setName('leaderboard')
-    .setDescription('Top 10 leaves')
-    .setDefaultMemberPermissions(
-      PermissionFlagsBits.ManageGuild
-    )
+    .setDescription('Top leaves')
+
 ].map(c => c.toJSON());
 
 // ─────────────────────────────
@@ -100,6 +96,7 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
+
   try {
 
     console.log('Registrando comandos...');
@@ -117,7 +114,113 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 })();
 
 // ─────────────────────────────
-// TRACK REAL JOINS/LEAVES
+// EXTRAER TEXTO
+// ─────────────────────────────
+
+function extractText(message) {
+
+  let text = '';
+
+  if (message.content) {
+    text += message.content + ' ';
+  }
+
+  if (message.embeds.length > 0) {
+
+    for (const embed of message.embeds) {
+
+      if (embed.title)
+        text += embed.title + ' ';
+
+      if (embed.description)
+        text += embed.description + ' ';
+
+      if (embed.footer?.text)
+        text += embed.footer.text + ' ';
+
+      if (embed.fields?.length) {
+
+        for (const field of embed.fields) {
+          text += field.name + ' ';
+          text += field.value + ' ';
+        }
+      }
+    }
+  }
+
+  return text.toLowerCase();
+}
+
+// ─────────────────────────────
+// ANALIZAR MENSAJE
+// ─────────────────────────────
+
+function processLogMessage(message) {
+
+  if (message.channelId !== SAPPHIRE_LOG_CHANNEL)
+    return;
+
+  const text = extractText(message);
+
+  if (!text) return;
+
+  // Buscar IDs
+  const ids =
+    text.match(/\b\d{17,20}\b/g) || [];
+
+  if (!ids.length) return;
+
+  const data = loadData();
+
+  for (const userId of ids) {
+
+    if (!data[userId]) {
+      data[userId] = {
+        joins: 0,
+        leaves: 0
+      };
+    }
+
+    // JOINS
+    if (
+      text.includes('joined') ||
+      text.includes('join') ||
+      text.includes('member joined')
+    ) {
+
+      data[userId].joins++;
+
+      console.log(
+        `JOIN detectado ${userId}`
+      );
+    }
+
+    // LEAVES
+    if (
+      text.includes('left') ||
+      text.includes('leave') ||
+      text.includes('member left')
+    ) {
+
+      data[userId].leaves++;
+
+      console.log(
+        `LEAVE detectado ${userId}`
+      );
+    }
+  }
+
+  saveData(data);
+}
+
+// ─────────────────────────────
+// ESCUCHAR NUEVOS LOGS
+// ─────────────────────────────
+
+client.on('messageCreate', processLogMessage);
+
+// ─────────────────────────────
+// TRACK REAL
 // ─────────────────────────────
 
 client.on('guildMemberAdd', member => {
@@ -135,7 +238,7 @@ client.on('guildMemberAdd', member => {
 
   saveData(data);
 
-  console.log(`JOIN REAL: ${member.user.tag}`);
+  console.log(`REAL JOIN ${member.user.tag}`);
 });
 
 client.on('guildMemberRemove', member => {
@@ -153,80 +256,60 @@ client.on('guildMemberRemove', member => {
 
   saveData(data);
 
-  console.log(`LEAVE REAL: ${member.user.tag}`);
+  console.log(`REAL LEAVE ${member.user.tag}`);
 });
 
 // ─────────────────────────────
-// SAPPHIRE LOGS IMPORT
+// IMPORTAR LOGS VIEJOS
 // ─────────────────────────────
 
-client.on('messageCreate', message => {
+async function importOldLogs() {
 
-  if (message.channelId !== SAPPHIRE_LOG_CHANNEL) return;
+  console.log(
+    'Escaneando logs viejos de Sapphire...'
+  );
 
-  const data = loadData();
+  const channel =
+    await client.channels.fetch(
+      SAPPHIRE_LOG_CHANNEL
+    );
 
-  let text = message.content?.toLowerCase() || '';
-
-  // Leer embeds de Sapphire
-  if (!text && message.embeds.length > 0) {
-
-    const embed = message.embeds[0];
-
-    text =
-      (
-        (embed.title || '') +
-        ' ' +
-        (embed.description || '') +
-        ' ' +
-        (embed.footer?.text || '')
-      ).toLowerCase();
+  if (!channel) {
+    console.log('Canal no encontrado');
+    return;
   }
 
-  if (!text) return;
+  let lastId;
+  let total = 0;
 
-  // Detectar ID usuario
-  const userId =
-    message.mentions.users.first()?.id ||
-    text.match(/\b\d{17,20}\b/)?.[0];
+  while (true) {
 
-  if (!userId) return;
+    const messages =
+      await channel.messages.fetch({
+        limit: 100,
+        before: lastId
+      });
 
-  if (!data[userId]) {
-    data[userId] = {
-      joins: 0,
-      leaves: 0
-    };
+    if (!messages.size) break;
+
+    for (const message of messages.values()) {
+
+      processLogMessage(message);
+
+      total++;
+    }
+
+    lastId = messages.last().id;
+
+    console.log(
+      `Mensajes escaneados: ${total}`
+    );
   }
 
-  // JOINS
-  if (
-    text.includes('joined') ||
-    text.includes('join') ||
-    text.includes('member joined')
-  ) {
-
-    data[userId].joins++;
-
-    saveData(data);
-
-    console.log(`JOIN SAPPHIRE: ${userId}`);
-  }
-
-  // LEAVES
-  if (
-    text.includes('left') ||
-    text.includes('leave') ||
-    text.includes('member left')
-  ) {
-
-    data[userId].leaves++;
-
-    saveData(data);
-
-    console.log(`LEAVE SAPPHIRE: ${userId}`);
-  }
-});
+  console.log(
+    'Importación de logs completada.'
+  );
+}
 
 // ─────────────────────────────
 // PERMISSIONS
@@ -235,36 +318,43 @@ client.on('messageCreate', message => {
 function isAllowed(interaction) {
 
   const isOwner =
-    interaction.guild.ownerId === interaction.user.id;
+    interaction.guild.ownerId ===
+    interaction.user.id;
 
   const hasRole =
-    interaction.member.roles.cache.has(ALLOWED_ROLE_ID);
+    interaction.member.roles.cache.has(
+      ALLOWED_ROLE_ID
+    );
 
   return isOwner || hasRole;
 }
 
 // ─────────────────────────────
-// COMMANDS HANDLER
+// COMMAND HANDLER
 // ─────────────────────────────
 
 client.on('interactionCreate', async interaction => {
 
-  if (!interaction.isChatInputCommand()) return;
+  if (!interaction.isChatInputCommand())
+    return;
 
-  // ───────── REGISTER ─────────
+  // REGISTER
 
   if (interaction.commandName === 'register') {
 
     if (!isAllowed(interaction)) {
 
       return interaction.reply({
-        content: '❌ Solo staff puede usar esto.',
+        content:
+          '❌ Solo staff puede usar esto.',
         ephemeral: true
       });
     }
 
     const user =
-      interaction.options.getUser('usuario');
+      interaction.options.getUser(
+        'usuario'
+      );
 
     const data = loadData();
 
@@ -275,13 +365,16 @@ client.on('interactionCreate', async interaction => {
 
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
-      .setTitle('📊 Registro de Usuario')
-      .setThumbnail(user.displayAvatarURL())
+      .setTitle(
+        '📊 Registro de Usuario'
+      )
+      .setThumbnail(
+        user.displayAvatarURL()
+      )
       .addFields(
         {
           name: '👤 Usuario',
-          value: `${user.tag}`,
-          inline: false
+          value: user.tag
         },
         {
           name: '📥 Joins',
@@ -304,40 +397,48 @@ client.on('interactionCreate', async interaction => {
     });
   }
 
-  // ───────── LEADERBOARD ─────────
+  // LEADERBOARD
 
-  if (interaction.commandName === 'leaderboard') {
+  if (
+    interaction.commandName ===
+    'leaderboard'
+  ) {
 
     if (!isAllowed(interaction)) {
 
       return interaction.reply({
-        content: '❌ Solo staff puede usar esto.',
+        content:
+          '❌ Solo staff puede usar esto.',
         ephemeral: true
       });
     }
 
     const data = loadData();
 
-    const sorted = Object.entries(data)
-      .sort((a, b) => b[1].leaves - a[1].leaves)
-      .slice(0, 10);
-
-    if (!sorted.length) {
-      return interaction.reply({
-        content: 'Sin datos'
-      });
-    }
+    const sorted =
+      Object.entries(data)
+        .sort(
+          (a, b) =>
+            b[1].leaves -
+            a[1].leaves
+        )
+        .slice(0, 10);
 
     const desc = sorted
-      .map((u, i) =>
-        `#${i + 1} <@${u[0]}> — ${u[1].leaves} leaves`
+      .map(
+        (u, i) =>
+          `#${i + 1} <@${u[0]}> — ${u[1].leaves} leaves`
       )
       .join('\n');
 
     const embed = new EmbedBuilder()
       .setColor('#ED4245')
-      .setTitle('🏆 Leaderboard Leaves')
-      .setDescription(desc)
+      .setTitle(
+        '🏆 Leaderboard Leaves'
+      )
+      .setDescription(
+        desc || 'Sin datos'
+      )
       .setTimestamp();
 
     return interaction.reply({
@@ -350,9 +451,14 @@ client.on('interactionCreate', async interaction => {
 // READY
 // ─────────────────────────────
 
-client.once('ready', () => {
+client.once('ready', async () => {
 
-  console.log(`${client.user.tag} online.`);
+  console.log(
+    `${client.user.tag} online.`
+  );
+
+  // ESCANEAR MENSAJES VIEJOS
+  await importOldLogs();
 });
 
 // ─────────────────────────────
