@@ -52,7 +52,9 @@ const ALLOWED_ROLE_ID =
 const SAPPHIRE_LOG_CHANNEL =
   '1406751369401991258';
 
-const MAX_OLD_MESSAGES = 1000;
+// logs antiguos a analizar
+
+const MAX_OLD_MESSAGES = 3000;
 
 // ─────────────────────────────
 // DATA
@@ -178,7 +180,7 @@ const rest =
 })();
 
 // ─────────────────────────────
-// EXTRAER TEXTO
+// EXTRAER TEXTO EMBEDS
 // ─────────────────────────────
 
 function extractText(message) {
@@ -288,7 +290,7 @@ async function processLogMessage(message) {
   }
 
   // ─────────────────────────
-  // SOLO MIEMBROS DEL SERVER
+  // SOLO USERS EN SERVER
   // ─────────────────────────
 
   let member = null;
@@ -464,8 +466,10 @@ async function importOldLogs() {
       `📄 Analizados: ${total}/${MAX_OLD_MESSAGES}`
     );
 
+    // evitar que Render lo mate
+
     await new Promise(resolve =>
-      setTimeout(resolve, 1500)
+      setTimeout(resolve, 2000)
     );
   }
 
@@ -504,7 +508,7 @@ client.on(
       !interaction.isChatInputCommand()
     ) return;
 
-    // REGISTER
+    // ───────── REGISTER ─────────
 
     if (
       interaction.commandName ===
@@ -527,8 +531,6 @@ client.on(
           'usuario'
         );
 
-      // solo miembros actuales
-
       const member =
         await interaction.guild.members
           .fetch(user.id)
@@ -538,7 +540,7 @@ client.on(
 
         return interaction.reply({
           content:
-            '❌ Ese usuario no está en el servidor.',
+            '❌ Usuario no encontrado en el servidor.',
           ephemeral: true
         });
       }
@@ -588,7 +590,7 @@ client.on(
       });
     }
 
-    // LEADERBOARD
+    // ───────── LEADERBOARD ─────────
 
     if (
       interaction.commandName ===
@@ -609,8 +611,6 @@ client.on(
       const data =
         loadData();
 
-      // SOLO miembros actuales
-
       const filtered = [];
 
       for (const [id, info] of Object.entries(data)) {
@@ -621,7 +621,6 @@ client.on(
             .catch(() => null);
 
         if (member) {
-
           filtered.push([id, info]);
         }
       }
