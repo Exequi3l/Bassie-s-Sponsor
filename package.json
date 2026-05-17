@@ -1,18 +1,23 @@
 {
+  "name": "join-leave-tracker",
+  "version": "1.0.0",
+  "description": "Discord join/leave tracker with Sapphire logs support",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "discord.js": "^14.26.4",
     "dotenv": "^16.6.1",
     "express": "^5.1.0"
   },
-  "name": "usuario",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
+  "keywords": [
+    "discord",
+    "bot",
+    "tracker",
+    "joins",
+    "leaves"
+  ],
   "author": "",
   "license": "ISC"
 }
