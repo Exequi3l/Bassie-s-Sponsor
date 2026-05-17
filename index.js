@@ -287,6 +287,30 @@ async function processLogMessage(message) {
     return;
   }
 
+  // ─────────────────────────
+  // SOLO MIEMBROS DEL SERVER
+  // ─────────────────────────
+
+  let member = null;
+
+  try {
+
+    member =
+      await message.guild.members
+        .fetch(userId)
+        .catch(() => null);
+
+  } catch {}
+
+  if (!member) {
+
+    console.log(
+      `⚠️ Ignorado ${userId} (no está en server)`
+    );
+
+    return;
+  }
+
   const data = loadData();
 
   ensureUser(data, userId);
@@ -298,7 +322,7 @@ async function processLogMessage(message) {
     data[userId].joins++;
 
     console.log(
-      `📥 JOIN -> ${userId}`
+      `📥 JOIN -> ${member.user.tag}`
     );
   }
 
@@ -309,7 +333,7 @@ async function processLogMessage(message) {
     data[userId].leaves++;
 
     console.log(
-      `📤 LEAVE -> ${userId}`
+      `📤 LEAVE -> ${member.user.tag}`
     );
   }
 
@@ -503,6 +527,22 @@ client.on(
           'usuario'
         );
 
+      // solo miembros actuales
+
+      const member =
+        await interaction.guild.members
+          .fetch(user.id)
+          .catch(() => null);
+
+      if (!member) {
+
+        return interaction.reply({
+          content:
+            '❌ Ese usuario no está en el servidor.',
+          ephemeral: true
+        });
+      }
+
       const data =
         loadData();
 
@@ -569,8 +609,25 @@ client.on(
       const data =
         loadData();
 
+      // SOLO miembros actuales
+
+      const filtered = [];
+
+      for (const [id, info] of Object.entries(data)) {
+
+        const member =
+          await interaction.guild.members
+            .fetch(id)
+            .catch(() => null);
+
+        if (member) {
+
+          filtered.push([id, info]);
+        }
+      }
+
       const sorted =
-        Object.entries(data)
+        filtered
           .sort(
             (a, b) =>
               b[1].leaves -
