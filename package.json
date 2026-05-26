@@ -1,7 +1,7 @@
 {
   "name": "join-leave-tracker",
   "version": "1.0.0",
-  "description": "Discord join/leave tracker with Sapphire logs support",
+  "description": "Deleted message detector",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -15,8 +15,7 @@
     "discord",
     "bot",
     "tracker",
-    "joins",
-    "leaves"
+    "logs"
   ],
   "author": "",
   "license": "ISC"
