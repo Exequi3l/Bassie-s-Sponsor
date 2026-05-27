@@ -25,15 +25,20 @@ client.on('messageDelete', async (message) => {
 
     try {
         // 1. Intentar detectar quién borró el mensaje (Audit Logs)
-        let executor = message.author;
+        let executor = null; // <-- CAMBIO: Iniciamos en null, no en el autor.
         await new Promise(r => setTimeout(r, 1200));
+        
         try {
             const logs = await message.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MessageDelete });
             const entry = logs.entries.first();
+            
             if (entry && entry.target.id === message.author.id && (Date.now() - entry.createdTimestamp) < 10000) {
                 executor = entry.executor;
             }
         } catch (e) { console.log("Audit log inaccesible"); }
+
+        // <-- CAMBIO: Si no hay executor (se borró a sí mismo) o si el executor es el mismo autor, detenemos la ejecución.
+        if (!executor || executor.id === message.author.id) return;
 
         // 2. Filtro de ROL (Solo procesar si el ejecutor tiene el rol)
         const member = await message.guild.members.fetch(executor.id).catch(() => null);
