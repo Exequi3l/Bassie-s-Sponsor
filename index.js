@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, AuditLogEvent } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, EmbedBuilder, AuditLogEvent, ActivityType } = require('discord.js');
 const express = require('express');
 
 const app = express();
@@ -20,12 +20,27 @@ const client = new Client({
 const LOG_CHANNEL_ID = '1508962801518121060';
 const MOD_ROLE_ID = '1458309307677540453';
 
+// Evento de encendido con tu Actividad Personalizada
+client.once('ready', () => {
+    console.log(`¡Bot conectado con éxito como ${client.user.tag}!`);
+    
+    // Configuración del estado con tus emojis nativos
+    client.user.setPresence({
+        activities: [{
+            name: 'customstatus',
+            type: ActivityType.Custom,
+            state: 'Los quiero mucho mis canastas 🧺❤️'
+        }],
+        status: 'online'
+    });
+});
+
 client.on('messageDelete', async (message) => {
     if (!message.guild || message.author?.bot) return;
 
     try {
         // 1. Intentar detectar quién borró el mensaje (Audit Logs)
-        let executor = null; // <-- CAMBIO: Iniciamos en null, no en el autor.
+        let executor = null; 
         await new Promise(r => setTimeout(r, 1200));
         
         try {
@@ -37,14 +52,14 @@ client.on('messageDelete', async (message) => {
             }
         } catch (e) { console.log("Audit log inaccesible"); }
 
-        // <-- CAMBIO: Si no hay executor (se borró a sí mismo) o si el executor es el mismo autor, detenemos la ejecución.
+        // Filtro estricto: Si no hay executor en logs o si el executor es el mismo autor, ignoramos el evento
         if (!executor || executor.id === message.author.id) return;
 
-        // 2. Filtro de ROL (Solo procesar si el ejecutor tiene el rol)
+        // 2. Filtro de ROL (Solo procesar si el ejecutor tiene el rol de moderación)
         const member = await message.guild.members.fetch(executor.id).catch(() => null);
         if (!member || !member.roles.cache.has(MOD_ROLE_ID)) return;
 
-        // 3. Construcción del Embed (Diseño final)
+        // 3. Construcción del Embed con tu color #E0B0FF
         const embed = new EmbedBuilder()
             .setColor('#E0B0FF')
             .setTitle('Message deleted')
