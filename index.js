@@ -18,36 +18,26 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildModeration // Para leer quién borró el mensaje
+        GatewayIntentBits.GuildModeration
     ],
     partials: [Partials.Message, Partials.Channel]
 });
 
-// NUEVOS IDs ACTUALIZADOS
+// SOLO EL NUEVO CANAL DE LOGS (Sin filtro de rol)
 const LOG_CHANNEL_ID = '1508962801518121060';
-const ALLOWED_ROLE_ID = '1458309307677540453';
 
 // ─────────────────────────────────────────────────────────────────
-// 3. EVENTO: MENSAJE BORRADO (CON FILTRO DE ROL)
+// 3. EVENTO: MENSAJE BORRADO
 // ─────────────────────────────────────────────────────────────────
 client.on('messageDelete', async (message) => {
-    // Evitamos errores básicos y omitimos bots
     if (!message.author || message.author.bot || !message.guild) return;
 
     try {
-        // Buscamos al miembro en el servidor para leer sus roles
-        const member = await message.guild.members.fetch(message.author.id).catch(() => null);
-
-        // 🛡️ FILTRO DE ROL: Si no tiene el rol permitido, el bot ignora el borrado
-        if (!member || !member.roles.cache.has(ALLOWED_ROLE_ID)) return;
-
         const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
         if (!logChannel) return console.log("❌ Canal de logs no encontrado.");
 
-        // -------------------------------------------------------------
         // BÚSQUEDA EN AUDITORÍA PARA SABER QUIÉN LO BORRÓ
-        // -------------------------------------------------------------
-        let executor = message.author; // Por defecto es el propio autor
+        let executor = message.author; 
 
         await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -68,7 +58,6 @@ client.on('messageDelete', async (message) => {
         } catch (auditError) {
             console.log("⚠️ No se pudo acceder a los Audit Logs.");
         }
-        // -------------------------------------------------------------
 
         const timestampRelativo = Math.floor(message.createdTimestamp / 1000);
 
@@ -100,7 +89,7 @@ client.on('messageDelete', async (message) => {
             .setTimestamp();
 
         await logChannel.send({ embeds: [embed] });
-        console.log(`✅ Log de borrado enviado al canal ${LOG_CHANNEL_ID}.`);
+        console.log(`✅ Log de borrado enviado al nuevo canal.`);
 
     } catch (err) {
         console.error('❌ Error en el log de borrado:', err);
@@ -111,7 +100,7 @@ client.on('messageDelete', async (message) => {
 // 4. READY Y ACTIVIDAD
 // ─────────────────────────────────────────────────────────────────
 client.once('ready', () => {
-    console.log(`✅ ${client.user.tag} encendido correctamente y monitoreando el rol.`);
+    console.log(`✅ ${client.user.tag} encendido correctamente.`);
     
     client.user.setPresence({
         activities: [{ 
