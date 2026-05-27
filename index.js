@@ -46,7 +46,7 @@ client.on('messageDelete', async (message) => {
 
         // 3. Construcción del Embed (Diseño final)
         const embed = new EmbedBuilder()
-            .setColor('#2b2d31')
+            .setColor('#E0B0FF')
             .setTitle('Message deleted')
             .setDescription(
                 `**Channel:** <#${message.channel.id}>\n` +
