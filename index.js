@@ -3,7 +3,7 @@ const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActivityType, AuditLo
 const express = require('express');
 
 // ─────────────────────────────────────────────────────────────────
-// 1. SERVIDOR WEB (Para Render)
+// 1. SERVIDOR WEB (Para Render y UptimeRobot)
 // ─────────────────────────────────────────────────────────────────
 const app = express();
 app.get('/', (req, res) => res.send('Bot Sapphire-Logs Online'));
@@ -18,29 +18,37 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildModeration // Necesario para leer los Audit Logs
+        GatewayIntentBits.GuildModeration // Para leer quién borró el mensaje
     ],
     partials: [Partials.Message, Partials.Channel]
 });
 
-const LOG_CHANNEL_ID = '1498071397136728124';
+// NUEVOS IDs ACTUALIZADOS
+const LOG_CHANNEL_ID = '1508962801518121060';
+const ALLOWED_ROLE_ID = '1458309307677540453';
 
 // ─────────────────────────────────────────────────────────────────
-// 3. EVENTO: MENSAJE BORRADO CON BÚSQUEDA DE EJECUTOR
+// 3. EVENTO: MENSAJE BORRADO (CON FILTRO DE ROL)
 // ─────────────────────────────────────────────────────────────────
 client.on('messageDelete', async (message) => {
+    // Evitamos errores básicos y omitimos bots
     if (!message.author || message.author.bot || !message.guild) return;
 
     try {
+        // Buscamos al miembro en el servidor para leer sus roles
+        const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+
+        // 🛡️ FILTRO DE ROL: Si no tiene el rol permitido, el bot ignora el borrado
+        if (!member || !member.roles.cache.has(ALLOWED_ROLE_ID)) return;
+
         const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (!logChannel) return;
+        if (!logChannel) return console.log("❌ Canal de logs no encontrado.");
 
         // -------------------------------------------------------------
-        // BÚSQUEDA EN LOS REGISTROS DE AUDITORÍA
+        // BÚSQUEDA EN AUDITORÍA PARA SABER QUIÉN LO BORRÓ
         // -------------------------------------------------------------
-        let executor = message.author; // Por defecto, asumimos que el autor borró su propio mensaje
+        let executor = message.author; // Por defecto es el propio autor
 
-        // Esperamos 1 segundo porque Discord a veces tarda en actualizar el Audit Log
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
@@ -51,17 +59,14 @@ client.on('messageDelete', async (message) => {
             
             const deletionLog = fetchedLogs.entries.first();
 
-            // Si hay un registro reciente y coincide con el canal y el autor del mensaje borrado
             if (deletionLog) {
                 const { executor: logExecutor, target, createdTimestamp } = deletionLog;
-                
-                // Comprobamos que el log sea de hace menos de 5 segundos
                 if (target.id === message.author.id && createdTimestamp > (Date.now() - 5000)) {
-                    executor = logExecutor; // ¡Encontramos al moderador que lo borró!
+                    executor = logExecutor; 
                 }
             }
         } catch (auditError) {
-            console.log("⚠️ No se pudo acceder a los Audit Logs. Usando al autor por defecto.");
+            console.log("⚠️ No se pudo acceder a los Audit Logs.");
         }
         // -------------------------------------------------------------
 
@@ -84,7 +89,6 @@ client.on('messageDelete', async (message) => {
             embedDescription += message.content ? `${message.content}` : `*Sin contenido de texto*`;
         }
 
-        // Aquí usamos al 'executor' (quien lo borró) para el footer
         const embed = new EmbedBuilder()
             .setColor('#FF0000')
             .setTitle('Message deleted')
@@ -96,7 +100,7 @@ client.on('messageDelete', async (message) => {
             .setTimestamp();
 
         await logChannel.send({ embeds: [embed] });
-        console.log(`✅ Log enviado. Autor: ${message.author.username} | Borrado por: ${executor.username}`);
+        console.log(`✅ Log de borrado enviado al canal ${LOG_CHANNEL_ID}.`);
 
     } catch (err) {
         console.error('❌ Error en el log de borrado:', err);
@@ -107,7 +111,7 @@ client.on('messageDelete', async (message) => {
 // 4. READY Y ACTIVIDAD
 // ─────────────────────────────────────────────────────────────────
 client.once('ready', () => {
-    console.log(`✅ ${client.user.tag} encendido correctamente.`);
+    console.log(`✅ ${client.user.tag} encendido correctamente y monitoreando el rol.`);
     
     client.user.setPresence({
         activities: [{ 
