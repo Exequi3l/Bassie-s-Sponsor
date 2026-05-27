@@ -18,13 +18,13 @@ const client = new Client({
 });
 
 const LOG_CHANNEL_ID = '1508962801518121060';
-const MOD_ROLE_ID = '1458309307677540453'; 
+const MOD_ROLE_ID = '1458309307677540453';
 
 client.on('messageDelete', async (message) => {
     if (!message.guild || message.author?.bot) return;
 
     try {
-        // 1. Identificar ejecutor
+        // 1. Intentar detectar quién borró el mensaje (Audit Logs)
         let executor = message.author;
         await new Promise(r => setTimeout(r, 1200));
         try {
@@ -33,36 +33,51 @@ client.on('messageDelete', async (message) => {
             if (entry && entry.target.id === message.author.id && (Date.now() - entry.createdTimestamp) < 10000) {
                 executor = entry.executor;
             }
-        } catch (e) {}
+        } catch (e) { console.log("Audit log inaccesible"); }
 
-        // 2. Filtro de ROL (Solo registra si el ejecutor tiene el rol)
+        // 2. Filtro de ROL (Solo procesar si el ejecutor tiene el rol)
         const member = await message.guild.members.fetch(executor.id).catch(() => null);
         if (!member || !member.roles.cache.has(MOD_ROLE_ID)) return;
 
-        // 3. Diseño del Embed (Estilo Sapphire)
+        // 3. Construcción del Embed (Diseño final)
+        const embed = new EmbedBuilder()
+            .setColor('#2b2d31')
+            .setTitle('Message deleted')
+            .setDescription(
+                `**Channel:** <#${message.channel.id}>\n` +
+                `**Message ID:** ${message.id}\n` +
+                `**Message author:** @${message.author.username} (<@${message.author.id}>)\n` +
+                `**Message created:** <t:${Math.floor(message.createdTimestamp / 1000)}:R>\n\n` +
+                `**Message**\n${message.content || '*Sin texto*'}`
+            )
+            .setFooter({ 
+                text: `${executor.username} • ${new Date(message.createdTimestamp).toLocaleDateString()}`, 
+                iconURL: executor.displayAvatarURL() 
+            });
+
+        // 4. Lógica DINÁMICA de Attachments
+        if (message.attachments.size > 0) {
+            const attachmentList = message.attachments.map(a => `[${a.name}](${a.url})`).join('\n');
+            
+            embed.addFields({ 
+                name: `${message.attachments.size} Attachment(s)`, 
+                value: attachmentList 
+            });
+            
+            // Si es imagen, mostrar previsualización
+            const firstAttachment = message.attachments.first();
+            if (firstAttachment.contentType?.startsWith('image/')) {
+                embed.setImage(firstAttachment.url);
+            }
+        }
+
+        // 5. Envío al canal de logs
         const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
         if (logChannel) {
-            const embed = new EmbedBuilder()
-                .setColor('#2b2d31') // Color oscuro estilo Discord
-                .setTitle('Message deleted')
-                .setDescription(
-                    `**Channel:** <#${message.channel.id}>\n` +
-                    `**Message ID:** ${message.id}\n` +
-                    `**Message author:** <@${message.author.id}>\n` +
-                    `**Message created:** <t:${Math.floor(message.createdTimestamp / 1000)}:R>\n\n` +
-                    `**Message**\n${message.content || '*Sin contenido de texto*'}`
-                )
-                .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-                .setFooter({ 
-                    text: executor.tag, 
-                    iconURL: executor.displayAvatarURL() 
-                })
-                .setTimestamp();
-            
             await logChannel.send({ embeds: [embed] });
         }
     } catch (err) {
-        console.error("Error:", err);
+        console.error("Error final:", err);
     }
 });
 
