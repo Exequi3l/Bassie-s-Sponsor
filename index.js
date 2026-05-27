@@ -39,7 +39,7 @@ client.on('messageDelete', async (message) => {
         const member = await message.guild.members.fetch(message.author.id).catch(() => null);
         
         // Verificación de rol y envío de log
-        if (member && member.roles.cache.has(ALLOWED_ROLE_ID)) {
+        if (member) {
             const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
             if (!logChannel) return console.log("❌ Canal de logs no encontrado.");
 
