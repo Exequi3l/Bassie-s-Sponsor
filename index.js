@@ -2,16 +2,10 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActivityType, AuditLogEvent } = require('discord.js');
 const express = require('express');
 
-// ─────────────────────────────────────────────────────────────────
-// 1. SERVIDOR WEB (Para Render y UptimeRobot)
-// ─────────────────────────────────────────────────────────────────
 const app = express();
-app.get('/', (req, res) => res.send('Bot Sapphire-Logs Online'));
-app.listen(process.env.PORT || 3000, () => console.log('🌐 Servidor web operativo'));
+app.get('/', (req, res) => res.send('Bot Online'));
+app.listen(process.env.PORT || 3000);
 
-// ─────────────────────────────────────────────────────────────────
-// 2. CONFIGURACIÓN DEL CLIENTE
-// ─────────────────────────────────────────────────────────────────
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -23,94 +17,62 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel]
 });
 
-// SOLO EL NUEVO CANAL DE LOGS (Sin filtro de rol)
 const LOG_CHANNEL_ID = '1508962801518121060';
+const ALLOWED_ROLE_ID = '1458309307677540453';
 
-// ─────────────────────────────────────────────────────────────────
-// 3. EVENTO: MENSAJE BORRADO
-// ─────────────────────────────────────────────────────────────────
+// Mapa para evitar duplicados en tiempo real (evita que el bot procese el mismo evento dos veces)
+const processedMessages = new Set();
+
 client.on('messageDelete', async (message) => {
     if (!message.author || message.author.bot || !message.guild) return;
+    
+    // Filtro anti-duplicados por ID de mensaje
+    if (processedMessages.has(message.id)) return;
+    processedMessages.add(message.id);
+    setTimeout(() => processedMessages.delete(message.id), 5000);
 
     try {
+        const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+        
+        // FILTRO DE ROL
+        if (!member || !member.roles.cache.has(ALLOWED_ROLE_ID)) return;
+
         const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (!logChannel) return console.log("❌ Canal de logs no encontrado.");
+        if (!logChannel) return;
 
-        // BÚSQUEDA EN AUDITORÍA PARA SABER QUIÉN LO BORRÓ
-        let executor = message.author; 
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        let executor = message.author;
+        await new Promise(resolve => setTimeout(resolve, 1200));
 
         try {
-            const fetchedLogs = await message.guild.fetchAuditLogs({
-                limit: 1,
-                type: AuditLogEvent.MessageDelete,
-            });
-            
+            const fetchedLogs = await message.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MessageDelete });
             const deletionLog = fetchedLogs.entries.first();
-
-            if (deletionLog) {
-                const { executor: logExecutor, target, createdTimestamp } = deletionLog;
-                if (target.id === message.author.id && createdTimestamp > (Date.now() - 5000)) {
-                    executor = logExecutor; 
-                }
+            if (deletionLog && deletionLog.target.id === message.author.id && deletionLog.createdTimestamp > (Date.now() - 5000)) {
+                executor = deletionLog.executor;
             }
-        } catch (auditError) {
-            console.log("⚠️ No se pudo acceder a los Audit Logs.");
-        }
-
-        const timestampRelativo = Math.floor(message.createdTimestamp / 1000);
-
-        let embedDescription = 
-            `**Channel:** ${message.channel.name || 'unknown'} (<#${message.channel.id}>)\n` +
-            `**Message ID:** ${message.id}\n` +
-            `**Message author:** @${message.author.username} (<@${message.author.id}>)\n` +
-            `**Message created:** <t:${timestampRelativo}:R>\n\n` +
-            `**Message**\n`;
-
-        if (message.attachments.size > 0) {
-            embedDescription += `**${message.attachments.size} Attachment(s)**\n`;
-            message.attachments.forEach(attachment => {
-                embedDescription += `> [${attachment.name}](${attachment.url})\n`;
-            });
-            if (message.content) embedDescription += `${message.content}`;
-        } else {
-            embedDescription += message.content ? `${message.content}` : `*Sin contenido de texto*`;
-        }
+        } catch (e) { /* Fallback a autor */ }
 
         const embed = new EmbedBuilder()
             .setColor('#FF0000')
             .setTitle('Message deleted')
-            .setDescription(embedDescription)
-            .setFooter({ 
-                text: `@${executor.username}`, 
-                iconURL: executor.displayAvatarURL({ dynamic: true }) 
-            })
+            .setDescription(
+                `**Channel:** <#${message.channel.id}>\n` +
+                `**Message ID:** ${message.id}\n` +
+                `**Message author:** @${message.author.username} (<@${message.author.id}>)\n` +
+                `**Message created:** <t:${Math.floor(message.createdTimestamp / 1000)}:R>\n\n` +
+                `**Message**\n${message.content || '*Sin contenido*'}`
+            )
+            .setFooter({ text: `@${executor.username}`, iconURL: executor.displayAvatarURL() })
             .setTimestamp();
 
         await logChannel.send({ embeds: [embed] });
-        console.log(`✅ Log de borrado enviado al nuevo canal.`);
-
     } catch (err) {
-        console.error('❌ Error en el log de borrado:', err);
+        console.error(err);
     }
 });
 
-// ─────────────────────────────────────────────────────────────────
-// 4. READY Y ACTIVIDAD
-// ─────────────────────────────────────────────────────────────────
 client.once('ready', () => {
-    console.log(`✅ ${client.user.tag} encendido correctamente.`);
-    
-    client.user.setPresence({
-        activities: [{ 
-            name: 'Canastas los quiero 🧺 ❤️', 
-            type: ActivityType.Playing 
-        }],
-        status: 'online'
-    });
+    client.user.setPresence({ activities: [{ name: 'Canastas los quiero 🧺 ❤️', type: ActivityType.Playing }], status: 'online' });
+    console.log("✅ Bot listo y filtrando por rol.");
 });
-
-process.on('unhandledRejection', (reason) => console.error('💥 Error no controlado:', reason));
 
 client.login(process.env.TOKEN);
