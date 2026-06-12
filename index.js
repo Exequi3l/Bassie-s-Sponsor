@@ -17,6 +17,8 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel]
 });
 
+require('./memberHandler')(client);
+
 const LOG_CHANNEL_ID = '1508962801518121060';
 const MOD_ROLE_ID = '1458309307677540453';
 
