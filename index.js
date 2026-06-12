@@ -5,7 +5,6 @@ const express = require('express');
 const app = express();
 app.get('/', (req, res) => res.send('Bot Online'));
 app.listen(process.env.PORT || 10000);
-});
 
 const client = new Client({
     intents: [
@@ -18,16 +17,15 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel]
 });
 
+// Importamos el manejador de miembros
 require('./memberHandler')(client);
 
 const LOG_CHANNEL_ID = '1508962801518121060';
 const MOD_ROLE_ID = '1458309307677540453';
 
-// Evento de encendido con tu Actividad Personalizada
+// Evento de encendido
 client.once('ready', () => {
     console.log(`¡Bot conectado con éxito como ${client.user.tag}!`);
-    
-    // Configuración del estado con tus emojis nativos
     client.user.setPresence({
         activities: [{
             name: 'customstatus',
@@ -42,7 +40,6 @@ client.on('messageDelete', async (message) => {
     if (!message.guild || message.author?.bot) return;
 
     try {
-        // 1. Intentar detectar quién borró el mensaje (Audit Logs)
         let executor = null; 
         await new Promise(r => setTimeout(r, 1200));
         
@@ -55,14 +52,11 @@ client.on('messageDelete', async (message) => {
             }
         } catch (e) { console.log("Audit log inaccesible"); }
 
-        // Filtro estricto: Si no hay executor en logs o si el executor es el mismo autor, ignoramos el evento
         if (!executor || executor.id === message.author.id) return;
 
-        // 2. Filtro de ROL (Solo procesar si el ejecutor tiene el rol de moderación)
         const member = await message.guild.members.fetch(executor.id).catch(() => null);
         if (!member || !member.roles.cache.has(MOD_ROLE_ID)) return;
 
-        // 3. Construcción del Embed con tu color #E0B0FF
         const embed = new EmbedBuilder()
             .setColor('#E0B0FF')
             .setTitle('Message deleted')
@@ -78,23 +72,15 @@ client.on('messageDelete', async (message) => {
                 iconURL: executor.displayAvatarURL() 
             });
 
-        // 4. Lógica DINÁMICA de Attachments
         if (message.attachments.size > 0) {
             const attachmentList = message.attachments.map(a => `[${a.name}](${a.url})`).join('\n');
-            
-            embed.addFields({ 
-                name: `${message.attachments.size} Attachment(s)`, 
-                value: attachmentList 
-            });
-            
-            // Si es imagen, mostrar previsualización
+            embed.addFields({ name: `${message.attachments.size} Attachment(s)`, value: attachmentList });
             const firstAttachment = message.attachments.first();
             if (firstAttachment.contentType?.startsWith('image/')) {
                 embed.setImage(firstAttachment.url);
             }
         }
 
-        // 5. Envío al canal de logs
         const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
         if (logChannel) {
             await logChannel.send({ embeds: [embed] });
