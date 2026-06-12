@@ -5,6 +5,8 @@ const express = require('express');
 const app = express();
 app.get('/', (req, res) => res.send('Bot Online'));
 app.listen(process.env.PORT || 10000);
+console.log(`Servidor escuchando en el puerto ${PORT}`);
+});
 
 const client = new Client({
     intents: [
