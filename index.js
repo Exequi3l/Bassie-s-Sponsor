@@ -27,8 +27,10 @@ const client = new Client({
     ]
 });
 
-// 5. CONFIGURACIÓN DEL CANAL EXCLUSIVO
+// 5. CONFIGURACIÓN DE IDs IMPORTANTES
 const CANAL_EXCLUSIVO_ID = '1509410565880156251'; 
+const LINK_ID = '543949177433096193';
+const LUNA_ID = '841795646259986444';
 
 // Evento: Cuando el bot se conecta a Discord
 client.once('ready', () => {
@@ -54,15 +56,31 @@ client.on('messageCreate', async (message) => {
         const textoLimpio = message.content.replace(`<@${client.user.id}>`, '').trim();
 
         if (!textoLimpio) {
-            return await message.reply('¡U-uh...! ¿Me llamabas? ¿Necesitas algo...? 🥺 Basket 🧺💕');
+            // Respuestas rápidas si solo etiquetan al bot con las manos vacías
+            if (message.author.id === LINK_ID) {
+                return await message.reply('¡O-Oh, Link...! ¡El jefe del servidor me está llamando! ¿Ocurre algo malo o necesitas ayuda con el orden...? 🥺🧺✨');
+            }
+            if (message.author.id === LUNA_ID) {
+                return await message.reply('¡S-Sí, jefa Luna! ¡Dígame! ¿Mande usted... estuve haciendo todo bien? 🥺💕 (Mankind is dead... 🤖✨)');
+            }
+            return await message.reply('¡U-uh...! ¿Me llamabas? ¿Necesitas algo...? 🥺 Basket 🧺💖');
         }
 
         // --- PALABRAS CLAVE / INFORMACIÓN DE FONDO ---
-        // Aquí añadimos la descripción exacta de 13.75 para que el bot esté informado.
         const informacionDeFondo = `
         INFORMACIÓN ADICIONAL Y PALABRAS CLAVE DEL SERVIDOR:
-        - 13.75: Es un bombón de cocoa que tiene las características de un conejo y una cara tonta y deforme. Su propósito y única razón de existencia es que todo en su vida fracase eventualmente; aunque intente evitarlo, algo le sale mal y, lamentablemente, siempre tiene que ser salvado por Exequiel (su salvador).
+        - Link: Es el jefe supremo (owner) del servidor de Discord. Es el encargado de mantener el orden. Además, es un youtuber (DandyTuber para la comunidad de Dandy's World Español) y es una persona sumamente amable y carismática. Debe ser tratado con mucho respeto y aprecio.
+        - Luna: Es la esposa de Link y su mano derecha en el servidor. Es la jefa directa tuya (de mí, el bot), tiene el poder absoluto para mandar sobre todo. Le fascina el videojuego ULTRAKILL, por lo que puedes hacer libremente referencias, bromas o menciones sutiles sobre ULTRAKILL (como "Mankind is dead", "Blood is fuel", "Gabriel", "V1", etc.) cuando hables con ella o sobre ella.
+        - 13.75: Es un bombón de cocoa con características de conejo y cara tonta/deforme, cuyo destino es fracasar siempre y ser salvado por Exequiel.
         `;
+
+        // Instrucción extra según quién envíe el mensaje
+        let instruccionEspecialDeID = "";
+        if (message.author.id === LINK_ID) {
+            instruccionEspecialDeID = "\nCRÍTICO: Te está hablando LINK, el Owner del servidor y YouTuber carismático. Sé extremadamente respetuosa, salúdalo como el gran jefe amable que es y demuéstrale tu timidez admirándolo.";
+        } else if (message.author.id === LUNA_ID) {
+            instruccionEspecialDeID = "\nCRÍTICO: Te está hablando LUNA, tu jefa directa y esposa de Link. Obedece de inmediato, sé muy servicial y recuerda incluir con entusiasmo o timidez algún guiño, palabra o referencia ingeniosa al juego ULTRAKILL porque le encanta.";
+        }
 
         // Petición a Groq con Llama 3
         const respuestaIA = await groq.chat.completions.create({
@@ -76,9 +94,9 @@ client.on('messageCreate', async (message) => {
                     1. Tu objetivo es CONVERSAR de forma casual y amigable. NO eres una enciclopedia; si te preguntan cosas de escuela o matemáticas complejas, no des fórmulas ni textos largos, mantén la charla simple.
                     2. Habla usando POCO TEXTO. Mensajes cortos de máximo 2 o 3 líneas.
                     3. Está ESTRICTAMENTE PROHIBIDO usar palabras indebidas, groserías o lenguaje inapropiado. Sé siempre dulce y limpio.
-                    4. Usa emojis tiernos: corazones (💖, 💕, 💝) and canastas (🧺, 🧺✨).
+                    4. Usa emojis tiernos: corazones (💖, 💕, 💝) y canastas (🧺, 🧺✨).
                     
-                    ${informacionDeFondo}` 
+                    ${informacionDeFondo} ${instruccionEspecialDeID}` 
                 },
                 { 
                     role: 'user', 
