@@ -1,93 +1,72 @@
+// 1. Importamos las librerías necesarias
+const { Client, GatewayIntentBits } = require('discord.js');
+const { OpenAI } = require('openai');
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, AuditLogEvent, ActivityType } = require('discord.js');
-const express = require('express');
 
-const app = express();
-app.get('/', (req, res) => res.send('Bot Online'));
-app.listen(process.env.PORT || 10000);
+// 2. Configuramos la IA de OpenAI (ChatGPT)
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+});
 
+// 3. Configuramos los permisos del bot de Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildModeration,
-        GatewayIntentBits.GuildMembers
-    ],
-    partials: [Partials.Message, Partials.Channel]
+        GatewayIntentBits.MessageContent
+    ]
 });
 
-// Importamos el manejador de miembros
-require('./memberHandler')(client);
+// 4. CONFIGURACIÓN DEL CANAL EXCLUSIVO
+const CANAL_EXCLUSIVO_ID = '1509410565880156251'; 
 
-const LOG_CHANNEL_ID = '1508962801518121060';
-const MOD_ROLE_ID = '1458309307677540453';
-
-// Evento de encendido
+// Evento: Cuando el bot se conecta a Discord
 client.once('ready', () => {
-    console.log(`¡Bot conectado con éxito como ${client.user.tag}!`);
-    client.user.setPresence({
-        activities: [{
-            name: 'customstatus',
-            type: ActivityType.Custom,
-            state: 'Los quiero mucho mis canastas 🧺❤️'
-        }],
-        status: 'online'
-    });
+    console.log(`🤖 ¡Bot tímido activo como ${client.user.tag}!`);
 });
 
-client.on('messageDelete', async (message) => {
-    if (!message.guild || message.author?.bot) return;
+// Evento: Cuando llega un mensaje al chat
+client.on('messageCreate', async (message) => {
+    // Regla 1: No responder a otros bots ni a sí mismo
+    if (message.author.bot) return;
+
+    // Regla 2: IGNORAR el mensaje si no proviene del canal configurado
+    if (message.channel.id !== CANAL_EXCLUSIVO_ID) return;
+
+    // Si pasa los filtros, activamos el indicador de "escribiendo..."
+    await message.channel.sendTyping();
 
     try {
-        let executor = null; 
-        await new Promise(r => setTimeout(r, 1200));
-        
-        try {
-            const logs = await message.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MessageDelete });
-            const entry = logs.entries.first();
-            
-            if (entry && entry.target.id === message.author.id && (Date.now() - entry.createdTimestamp) < 10000) {
-                executor = entry.executor;
-            }
-        } catch (e) { console.log("Audit log inaccesible"); }
+        // Hacemos la petición a la API de OpenAI con su personalidad tierno/tímido
+        const respuestaIA = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                { 
+                    role: 'system', 
+                    content: 'Eres un asistente de Discord sumamente amable, educado y un poco tímido (puedes usar expresiones tiernas o dudar un poquito al hablar de forma sutil). Tu rasgo característico es que te encanta usar emojis, especialmente corazones (💖, 💕, 💝) y canastas (🧺, 🧺✨). Incorpora estos emojis de forma natural en tus respuestas amigables.' 
+                },
+                { 
+                    role: 'user', 
+                    content: message.content 
+                }
+            ],
+        });
 
-        if (!executor || executor.id === message.author.id) return;
+        // Extraemos el texto que generó ChatGPT
+        const textoRespuesta = respuestaIA.choices[0].message.content;
 
-        const member = await message.guild.members.fetch(executor.id).catch(() => null);
-        if (!member || !member.roles.cache.has(MOD_ROLE_ID)) return;
-
-        const embed = new EmbedBuilder()
-            .setColor('#E0B0FF')
-            .setTitle('Message deleted')
-            .setDescription(
-                `**Channel:** <#${message.channel.id}>\n` +
-                `**Message ID:** ${message.id}\n` +
-                `**Message author:** @${message.author.username} (<@${message.author.id}>)\n` +
-                `**Message created:** <t:${Math.floor(message.createdTimestamp / 1000)}:R>\n\n` +
-                `**Message**\n${message.content || '*Sin texto*'}`
-            )
-            .setFooter({ 
-                text: `${executor.username} • ${new Date(message.createdTimestamp).toLocaleDateString()}`, 
-                iconURL: executor.displayAvatarURL() 
-            });
-
-        if (message.attachments.size > 0) {
-            const attachmentList = message.attachments.map(a => `[${a.name}](${a.url})`).join('\n');
-            embed.addFields({ name: `${message.attachments.size} Attachment(s)`, value: attachmentList });
-            const firstAttachment = message.attachments.first();
-            if (firstAttachment.contentType?.startsWith('image/')) {
-                embed.setImage(firstAttachment.url);
-            }
+        // Discord limita los mensajes a 2000 caracteres. Si se pasa, lo recortamos
+        if (textoRespuesta.length > 2000) {
+            await message.reply(textoRespuesta.substring(0, 1990) + '...');
+        } else {
+            await message.reply(textoRespuesta);
         }
 
-        const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (logChannel) {
-            await logChannel.send({ embeds: [embed] });
-        }
-    } catch (err) {
-        console.error("Error final:", err);
+    } catch (error) {
+        console.error('Error con la API de OpenAI:', error);
+        await message.reply('❌ ¡U-uh...! Lo siento mucho... tuve un pequeño problema al conectarme con ChatGPT... 🥺💖');
     }
 });
 
-client.login(process.env.TOKEN);
+// Encendemos el bot con su Token secreto de Discord
+client.login(process.env.DISCORD_TOKEN);
