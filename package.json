@@ -1,22 +1,14 @@
 {
-  "name": "join-leave-tracker",
+  "name": "discord-chatgpt-bot",
   "version": "1.0.0",
-  "description": "Deleted message detector",
+  "description": "Bot de Discord con ChatGPT",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.26.4",
-    "dotenv": "^16.6.1",
-    "express": "^5.1.0"
-  },
-  "keywords": [
-    "discord",
-    "bot",
-    "tracker",
-    "logs"
-  ],
-  "author": "",
-  "license": "ISC"
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "openai": "^4.28.0"
+  }
 }
