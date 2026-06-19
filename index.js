@@ -5,7 +5,7 @@ require('dotenv').config();
 
 // 2. Configuramos la IA de Groq con Llama 3
 const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY // Se leerá desde Render
+    apiKey: process.env.GROQ_API_KEY
 });
 
 // 3. Configuramos los permisos del bot de Discord
@@ -30,16 +30,26 @@ client.on('messageCreate', async (message) => {
     // Regla 1: No responder a otros bots ni a sí mismo
     if (message.author.bot) return;
 
-    // Regla 2: IGNORAR si no es el canal correcto
+    // Regla 2: IGNORAR si el mensaje no está en el canal correcto
     if (message.channel.id !== CANAL_EXCLUSIVO_ID) return;
 
-    // Indicador de "escribiendo..."
+    // Regla 3: NUEVA - IGNORAR si el mensaje NO menciona al bot
+    if (!message.mentions.has(client.user)) return;
+
+    // Si pasa todos los filtros, activamos el indicador de "escribiendo..."
     await message.channel.sendTyping();
 
     try {
-        // Hacemos la petición a Groq usando el modelo Llama 3
+        // Limpiamos la mención del texto para que Llama 3 no se confunda con IDs raros
+        const textoLimpio = message.content.replace(`<@${client.user.id}>`, '').trim();
+
+        // Si el usuario solo etiquetó al bot sin escribir nada más
+        if (!textoLimpio) {
+            return await message.reply('¡U-uh...! ¿Me llamabas? ¿Necesitas algo...? 🥺🧺💕');
+        }
+
+        // Hacemos la petición a Groq usando Llama 3
         const respuestaIA = await groq.chat.completions.create({
-            // Usamos Llama 3.1 de 8 mil millones de parámetros (ultra rápido y eficiente)
             model: 'llama-3.1-8b-instant', 
             messages: [
                 { 
@@ -48,7 +58,7 @@ client.on('messageCreate', async (message) => {
                 },
                 { 
                     role: 'user', 
-                    content: message.content 
+                    content: textoLimpio 
                 }
             ],
         });
