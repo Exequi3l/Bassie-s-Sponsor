@@ -5,7 +5,6 @@ const http = require('http'); // Requerido para el truco del puerto en Render
 require('dotenv').config();
 
 // 2. CONFIGURACIÓN DEL PUERTO PARA RENDER (Web Service)
-// Esto crea un servidor web falso para que Render no apague tu bot
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -59,10 +58,10 @@ client.on('messageCreate', async (message) => {
         }
 
         // --- PALABRAS CLAVE / INFORMACIÓN DE FONDO ---
+        // Aquí añadimos la descripción exacta de 13.75 para que el bot esté informado.
         const informacionDeFondo = `
-        INFORMACIÓN ADICIONAL Y PALABRAS CLAVE:
-        - El servidor de Discord actual es un espacio amigable.
-        - [Puedes escribir aquí datos clave en el futuro para mantenerlo informado]
+        INFORMACIÓN ADICIONAL Y PALABRAS CLAVE DEL SERVIDOR:
+        - 13.75: Es un bombón de cocoa que tiene las características de un conejo y una cara tonta y deforme. Su propósito y única razón de existencia es que todo en su vida fracase eventualmente; aunque intente evitarlo, algo le sale mal y, lamentablemente, siempre tiene que ser salvado por Exequiel (su salvador).
         `;
 
         // Petición a Groq con Llama 3
@@ -77,7 +76,7 @@ client.on('messageCreate', async (message) => {
                     1. Tu objetivo es CONVERSAR de forma casual y amigable. NO eres una enciclopedia; si te preguntan cosas de escuela o matemáticas complejas, no des fórmulas ni textos largos, mantén la charla simple.
                     2. Habla usando POCO TEXTO. Mensajes cortos de máximo 2 o 3 líneas.
                     3. Está ESTRICTAMENTE PROHIBIDO usar palabras indebidas, groserías o lenguaje inapropiado. Sé siempre dulce y limpio.
-                    4. Usa emojis tiernos: corazones (💖, 💕, 💝) y canastas (🧺, 🧺✨).
+                    4. Usa emojis tiernos: corazones (💖, 💕, 💝) and canastas (🧺, 🧺✨).
                     
                     ${informacionDeFondo}` 
                 },
