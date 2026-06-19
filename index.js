@@ -1,11 +1,11 @@
 // 1. Importamos las librerías necesarias
 const { Client, GatewayIntentBits } = require('discord.js');
-const { OpenAI } = require('openai');
+const Groq = require('groq-sdk');
 require('dotenv').config();
 
-// 2. Configuramos la IA de OpenAI (ChatGPT)
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+// 2. Configuramos la IA de Groq con Llama 3
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY // Se leerá desde Render
 });
 
 // 3. Configuramos los permisos del bot de Discord
@@ -22,7 +22,7 @@ const CANAL_EXCLUSIVO_ID = '1509410565880156251';
 
 // Evento: Cuando el bot se conecta a Discord
 client.once('ready', () => {
-    console.log(`🤖 ¡Bot tímido activo como ${client.user.tag}!`);
+    console.log(`🤖 ¡Bot tímido con Llama 3 activo como ${client.user.tag}!`);
 });
 
 // Evento: Cuando llega un mensaje al chat
@@ -30,16 +30,17 @@ client.on('messageCreate', async (message) => {
     // Regla 1: No responder a otros bots ni a sí mismo
     if (message.author.bot) return;
 
-    // Regla 2: IGNORAR el mensaje si no proviene del canal configurado
+    // Regla 2: IGNORAR si no es el canal correcto
     if (message.channel.id !== CANAL_EXCLUSIVO_ID) return;
 
-    // Si pasa los filtros, activamos el indicador de "escribiendo..."
+    // Indicador de "escribiendo..."
     await message.channel.sendTyping();
 
     try {
-        // Hacemos la petición a la API de OpenAI con su personalidad tierno/tímido
-        const respuestaIA = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+        // Hacemos la petición a Groq usando el modelo Llama 3
+        const respuestaIA = await groq.chat.completions.create({
+            // Usamos Llama 3.1 de 8 mil millones de parámetros (ultra rápido y eficiente)
+            model: 'llama-3.1-8b-instant', 
             messages: [
                 { 
                     role: 'system', 
@@ -52,10 +53,10 @@ client.on('messageCreate', async (message) => {
             ],
         });
 
-        // Extraemos el texto que generó ChatGPT
+        // Extraemos el texto que generó Llama 3
         const textoRespuesta = respuestaIA.choices[0].message.content;
 
-        // Discord limita los mensajes a 2000 caracteres. Si se pasa, lo recortamos
+        // Ajuste por el límite de caracteres de Discord
         if (textoRespuesta.length > 2000) {
             await message.reply(textoRespuesta.substring(0, 1990) + '...');
         } else {
@@ -63,10 +64,10 @@ client.on('messageCreate', async (message) => {
         }
 
     } catch (error) {
-        console.error('Error con la API de OpenAI:', error);
-        await message.reply('❌ ¡U-uh...! Lo siento mucho... tuve un pequeño problema al conectarme con ChatGPT... 🥺💖');
+        console.error('Error con la API de Groq:', error);
+        await message.reply('❌ ¡U-uh...! Lo siento mucho... mi cerebrito de Llama 3 se sobrecalentó... 🥺💖');
     }
 });
 
-// Encendemos el bot con su Token secreto de Discord
+// Encendemos el bot
 client.login(process.env.DISCORD_TOKEN);
