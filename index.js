@@ -1,9 +1,9 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const http = require('http'); // Módulo nativo para abrir el puerto
+const http = require('http'); // Para mantener el bot despierto en el hosting
 require('dotenv').config();
 
-// === VINCULACIÓN DEL PUERTO (Para evitar que el hosting se apague) ===
+// === VINCULACIÓN DEL PUERTO ===
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -11,7 +11,7 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
     console.log(`Servidor web escuchando en el puerto ${PORT}`);
 });
-// =====================================================================
+// ==============================
 
 const client = new Client({
     intents: [
@@ -27,7 +27,7 @@ const BLOXLINK_API_KEY = "8fe9f751-9316-4fe1-82f7-2438e97db65a";
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
-    const args = message.content.slice(PREFIX.length).trim().split(/+/);
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
     if (command === 'search') {
@@ -67,4 +67,5 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-client.login(process.env.DISCORD_TOKEN || "TU_TOKEN_DE_DISCORD_AQUÍ");
+// Iniciar sesión con el token guardado en las variables de entorno
+client.login(process.env.DISCORD_TOKEN);
