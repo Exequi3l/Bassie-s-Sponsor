@@ -3,7 +3,7 @@ const axios = require('axios');
 const http = require('http');
 require('dotenv').config();
 
-// === VINCULACIÓN DEL PUERTO (Para mantener vivo el bot en Render) ===
+// === VINCULACIÓN DEL PUERTO (Para Render) ===
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -11,7 +11,7 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
     console.log(`Servidor web escuchando en el puerto ${PORT}`);
 });
-// =====================================================================
+// ============================================
 
 const client = new Client({
     intents: [
@@ -23,7 +23,7 @@ const client = new Client({
 
 const PREFIX = "!";
 
-// Se asigna tu API Key de prueba directamente como valor por defecto
+// Tu API Key de prueba asignada por defecto
 const BLOXLINK_API_KEY = process.env.BLOXLINK_API_KEY || "785d27c1-04a6-4685-9482-c29643e05def";
 
 client.on('messageCreate', async (message) => {
@@ -32,17 +32,13 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // 🔍 1. BUSCAR POR DISCORD (Mención o ID de Discord)
+    // 🔍 1. COMANDO DISCORDSEARCH
     if (command === 'discordsearch') {
-        if (!BLOXLINK_API_KEY) {
-            return message.reply("⚠️ **Error de configuración:** No se ha detectado ninguna API Key de Bloxlink.");
-        }
-
         const targetUser = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
 
         if (!targetUser) {
             const errorEmbed = new EmbedBuilder()
-                .setDescription("❌ Users not founded / doesnt exists")
+                .setDescription("❌ Error: No se pudo encontrar a ese usuario en Discord. Verifica el ID o la mención.")
                 .setColor(0xFF0000);
             return message.channel.send({ embeds: [errorEmbed] });
         }
@@ -55,7 +51,7 @@ client.on('messageCreate', async (message) => {
             });
 
             const robloxId = response.data.robloxId;
-            if (!robloxId) throw new Error("No vinculado");
+            if (!robloxId) throw new Error("NOT_LINKED");
 
             const embed = new EmbedBuilder()
                 .setTitle(`${targetUser.displayName} [${targetUser.id}]`)
@@ -69,29 +65,35 @@ client.on('messageCreate', async (message) => {
             await message.channel.send({ embeds: [embed] });
 
         } catch (error) {
-            // Si Bloxlink rechaza la Key de prueba por ser inválida o expirar saltará aquí
-            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-                return message.reply("🔑 **Error de Bloxlink:** La API Key proporcionada es inválida, no tiene permisos o ha expirado.");
+            let errorText = "❌ Users not founded / doesnt exists";
+
+            // Diagnóstico detallado del error de la API
+            if (error.response) {
+                if (error.response.status === 401 || error.response.status === 403) {
+                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida, expiró o no pertenece a este servidor.`;
+                } else if (error.response.status === 404) {
+                    errorText = "❌ Users not founded / doesnt exists (Este Discord no está vinculado en Bloxlink)";
+                } else {
+                    errorText = `⚠️ **Bloxlink Error (${error.response.status}):** ${error.response.data?.error || error.message}`;
+                }
+            } else if (error.message === "NOT_LINKED") {
+                errorText = "❌ Users not founded / doesnt exists (Cuenta sin ID de Roblox asociado)";
+            } else {
+                errorText = `💻 **Internal Error:** ${error.message}`;
             }
 
-            const errorEmbed = new EmbedBuilder()
-                .setDescription("❌ Users not founded / doesnt exists")
-                .setColor(0xFF0000);
+            const errorEmbed = new EmbedBuilder().setDescription(errorText).setColor(0xFF0000);
             await message.channel.send({ embeds: [errorEmbed] });
         }
     }
 
-    // 🔍 2. BUSCAR POR ID DE ROBLOX
+    // 🔍 2. COMANDO ROBLOXSEARCH
     if (command === 'robloxsearch') {
-        if (!BLOXLINK_API_KEY) {
-            return message.reply("⚠️ **Error de configuración:** No se ha detectado ninguna API Key de Bloxlink.");
-        }
-
         const robloxId = args[0];
 
         if (!robloxId || isNaN(robloxId)) {
             const errorEmbed = new EmbedBuilder()
-                .setDescription("❌ Users not founded / doesnt exists")
+                .setDescription("❌ Por favor, provee un ID de Roblox puramente numérico.")
                 .setColor(0xFF0000);
             return message.channel.send({ embeds: [errorEmbed] });
         }
@@ -104,13 +106,12 @@ client.on('messageCreate', async (message) => {
             });
 
             const discordUsers = response.data.discordUsers || [];
-            if (discordUsers.length === 0) throw new Error("No vinculado");
+            if (discordUsers.length === 0) throw new Error("NOT_LINKED");
 
             const primaryDiscordId = discordUsers[0];
             const primaryUser = await client.users.fetch(primaryDiscordId).catch(() => null);
             const displayTitle = primaryUser ? `${primaryUser.displayName} [${primaryUser.id}]` : `Roblox User [${robloxId}]`;
 
-            // Construcción automática de la lista extendida si existen múltiples cuentas unidas
             const connectedList = discordUsers.map(discordId => `<@${discordId}> [${robloxId}]`).join('\n');
 
             const embed = new EmbedBuilder()
@@ -125,13 +126,23 @@ client.on('messageCreate', async (message) => {
             await message.channel.send({ embeds: [embed] });
 
         } catch (error) {
-            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-                return message.reply("🔑 **Error de Bloxlink:** La API Key proporcionada es inválida, no tiene permisos o ha expirado.");
+            let errorText = "❌ Users not founded / doesnt exists";
+
+            if (error.response) {
+                if (error.response.status === 401 || error.response.status === 403) {
+                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida, expiró o no tiene accesos.`;
+                } else if (error.response.status === 404) {
+                    errorText = "❌ Users not founded / doesnt exists (Este ID de Roblox no está en los registros de Bloxlink)";
+                } else {
+                    errorText = `⚠️ **Bloxlink Error (${error.response.status}):** ${error.response.data?.error || error.message}`;
+                }
+            } else if (error.message === "NOT_LINKED") {
+                errorText = "❌ Users not founded / doesnt exists (Este ID de Roblox no tiene Discords conectados)";
+            } else {
+                errorText = `💻 **Internal Error:** ${error.message}`;
             }
 
-            const errorEmbed = new EmbedBuilder()
-                .setDescription("❌ Users not founded / doesnt exists")
-                .setColor(0xFF0000);
+            const errorEmbed = new EmbedBuilder().setDescription(errorText).setColor(0xFF0000);
             await message.channel.send({ embeds: [errorEmbed] });
         }
     }
