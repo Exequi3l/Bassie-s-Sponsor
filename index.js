@@ -23,8 +23,8 @@ const client = new Client({
 
 const PREFIX = "!";
 
-// El bot buscará la KEY en tus variables de entorno de Render, o usará la que pegues aquí abajo
-const BLOXLINK_API_KEY = process.env.BLOXLINK_API_KEY || "8fe9f751-9316-4fe1-82f7-2438e97db65a";
+// Se asigna tu API Key de prueba directamente como valor por defecto
+const BLOXLINK_API_KEY = process.env.BLOXLINK_API_KEY || "785d27c1-04a6-4685-9482-c29643e05def";
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.content.startsWith(PREFIX)) return;
@@ -34,9 +34,8 @@ client.on('messageCreate', async (message) => {
 
     // 🔍 1. BUSCAR POR DISCORD (Mención o ID de Discord)
     if (command === 'discordsearch') {
-        // Alerta si olvidaste cambiar la clave de la API
-        if (BLOXLINK_API_KEY === "8fe9f751-9316-4fe1-82f7-2438e97db65a") {
-            return message.reply("⚠️ **Error de configuración:** No has colocado tu API Key de Bloxlink en el código o en las variables de entorno.");
+        if (!BLOXLINK_API_KEY) {
+            return message.reply("⚠️ **Error de configuración:** No se ha detectado ninguna API Key de Bloxlink.");
         }
 
         const targetUser = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
@@ -70,9 +69,9 @@ client.on('messageCreate', async (message) => {
             await message.channel.send({ embeds: [embed] });
 
         } catch (error) {
-            // Si la API de Bloxlink dice que tu clave es inválida (Error 401 o 403)
+            // Si Bloxlink rechaza la Key de prueba por ser inválida o expirar saltará aquí
             if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-                return message.reply("🔑 **Error de Bloxlink:** Tu API Key es inválida, no tiene permisos o ha expirado.");
+                return message.reply("🔑 **Error de Bloxlink:** La API Key proporcionada es inválida, no tiene permisos o ha expirado.");
             }
 
             const errorEmbed = new EmbedBuilder()
@@ -84,8 +83,8 @@ client.on('messageCreate', async (message) => {
 
     // 🔍 2. BUSCAR POR ID DE ROBLOX
     if (command === 'robloxsearch') {
-        if (BLOXLINK_API_KEY === "8fe9f751-9316-4fe1-82f7-2438e97db65a") {
-            return message.reply("⚠️ **Error de configuración:** No has colocado tu API Key de Bloxlink en el código o en las variables de entorno.");
+        if (!BLOXLINK_API_KEY) {
+            return message.reply("⚠️ **Error de configuración:** No se ha detectado ninguna API Key de Bloxlink.");
         }
 
         const robloxId = args[0];
@@ -107,12 +106,11 @@ client.on('messageCreate', async (message) => {
             const discordUsers = response.data.discordUsers || [];
             if (discordUsers.length === 0) throw new Error("No vinculado");
 
-            // Obtenemos los datos del primer Discord vinculado para armar el título principal
             const primaryDiscordId = discordUsers[0];
             const primaryUser = await client.users.fetch(primaryDiscordId).catch(() => null);
             const displayTitle = primaryUser ? `${primaryUser.displayName} [${primaryUser.id}]` : `Roblox User [${robloxId}]`;
 
-            // Construir la lista extendida si hay múltiples cuentas conectadas
+            // Construcción automática de la lista extendida si existen múltiples cuentas unidas
             const connectedList = discordUsers.map(discordId => `<@${discordId}> [${robloxId}]`).join('\n');
 
             const embed = new EmbedBuilder()
@@ -128,7 +126,7 @@ client.on('messageCreate', async (message) => {
 
         } catch (error) {
             if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-                return message.reply("🔑 **Error de Bloxlink:** Tu API Key es inválida, no tiene permisos o ha expirado.");
+                return message.reply("🔑 **Error de Bloxlink:** La API Key proporcionada es inválida, no tiene permisos o ha expirado.");
             }
 
             const errorEmbed = new EmbedBuilder()
