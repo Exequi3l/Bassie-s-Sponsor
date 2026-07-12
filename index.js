@@ -31,33 +31,64 @@ client.on('messageCreate', async (message) => {
     const command = args.shift().toLowerCase();
 
     if (command === 'search') {
-        const targetUser = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
-
-        if (!targetUser) {
-            return message.reply("Por favor, menciona a un usuario o provee un ID válido.");
+        if (!args[0]) {
+            return message.reply("❌ Por favor, menciona a un usuario o provee un ID válido.");
         }
 
-        const url = `https://api.bloxlink.biz/v3/user/${targetUser.id}`;
+        // Limpiamos menciones (ej: <@123456789> pasa a ser 123456789)
+        const query = args[0].replace(/[<@!>]/g, '');
+        
+        // Los IDs de Discord tienen 17 o más números. Si tiene menos, asumimos que es de Roblox.
+        const isRobloxSearch = query.length < 15;
 
         try {
-            const response = await axios.get(url, {
-                headers: { "Authorization": BLOXLINK_API_KEY }
-            });
+            let targetDiscordId = null;
+            let targetRobloxId = null;
 
-            const robloxId = response.data.robloxId || "No encontrado";
+            if (isRobloxSearch) {
+                // 🔍 BÚSQUEDA POR ID DE ROBLOX
+                const url = `https://api.bloxlink.biz/v3/roblox/${query}`;
+                const response = await axios.get(url, { headers: { "Authorization": BLOXLINK_API_KEY } });
+                
+                // Bloxlink devuelve los usuarios de Discord vinculados en un array
+                const discordUsers = response.data.discordUsers || [];
+                if (discordUsers.length === 0) throw new Error("No vinculado");
 
+                targetDiscordId = discordUsers[0]; // Primera cuenta de Discord vinculada
+                targetRobloxId = query;
+            } else {
+                // 🔍 BÚSQUEDA POR ID DE DISCORD O MENCIÓN
+                targetDiscordId = query;
+                const url = `https://api.bloxlink.biz/v3/user/${targetDiscordId}`;
+                const response = await axios.get(url, { headers: { "Authorization": BLOXLINK_API_KEY } });
+                
+                targetRobloxId = response.data.robloxId;
+                if (!targetRobloxId) throw new Error("No vinculado");
+            }
+
+            // Obtener datos del usuario de Discord para el Embed
+            const targetUser = await client.users.fetch(targetDiscordId).catch(() => null);
+            if (!targetUser) throw new Error("Usuario no encontrado en Discord");
+
+            // ✅ Embed de Éxito
             const embed = new EmbedBuilder()
                 .setTitle(`${targetUser.displayName} [${targetUser.id}]`)
                 .setColor(0x0099FF)
                 .addFields({
                     name: "Users Connected:",
-                    value: `<@${targetUser.id}> [${robloxId}]`,
+                    value: `<@${targetUser.id}> [${targetRobloxId}]`,
                     inline: false
                 });
 
             await message.channel.send({ embeds: [embed] });
 
         } catch (error) {
+            // Mostrar en la terminal si el problema es que la API Key es incorrecta
+            if (error.response && error.response.status === 401) {
+                console.error("⚠️ ERROR: Tu API Key de Bloxlink es inválida o no está configurada.");
+            }
+
+            // ❌ Embed de Error
             const errorEmbed = new EmbedBuilder()
                 .setDescription("❌ Users not founded / doesnt exists")
                 .setColor(0xFF0000);
