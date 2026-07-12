@@ -35,7 +35,7 @@ client.on('messageCreate', async (message) => {
     // 🔍 1. BUSCAR POR DISCORD (Mención o ID de Discord)
     if (command === 'discordsearch') {
         // Alerta si olvidaste cambiar la clave de la API
-        if (BLOXLINK_API_KEY === "TU_API_KEY_DE_BLOXLINK_AQUÍ") {
+        if (BLOXLINK_API_KEY === "8fe9f751-9316-4fe1-82f7-2438e97db65a") {
             return message.reply("⚠️ **Error de configuración:** No has colocado tu API Key de Bloxlink en el código o en las variables de entorno.");
         }
 
