@@ -43,8 +43,8 @@ client.on('messageCreate', async (message) => {
             return message.channel.send({ embeds: [errorEmbed] });
         }
 
-        // URL CORREGIDA: v3api.bloxlink.biz
-        const url = `https://v3api.bloxlink.biz/v3/user/${targetUser.id}`;
+        // URL Oficial de la API v3
+        const url = `https://api.bloxlink.biz/v3/user/${targetUser.id}`;
 
         try {
             const response = await axios.get(url, {
@@ -98,8 +98,8 @@ client.on('messageCreate', async (message) => {
             return message.channel.send({ embeds: [errorEmbed] });
         }
 
-        // URL CORREGIDA: v3api.bloxlink.biz
-        const url = `https://v3api.bloxlink.biz/v3/roblox/${robloxId}`;
+        // URL Oficial de la API v3
+        const url = `https://api.bloxlink.biz/v3/roblox/${robloxId}`;
 
         try {
             const response = await axios.get(url, {
