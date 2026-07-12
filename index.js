@@ -1,42 +1,46 @@
-import discord
-from discord.ext import commands
-import requests
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const axios = require('axios'); // Usamos axios para las peticiones a la API
+require('dotenv').config();
 
-# Asegúrate de tener definidos tu BOT y la API KEY de Bloxlink
-# bot = commands.Bot(command_prefix="!")
-# BLOXLINK_API_KEY = "8fe9f751-9316-4fe1-82f7-2438e97db65a"
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
 
-@bot.command(name="search")
-async def search(ctx, usuario_discord: discord.User):
-    url = f"https://api.bloxlink.biz/v3/user/{usuario_discord.id}"
-    headers = {"Authorization": BLOXLINK_API_KEY}
-    
-    # Realiza la petición a la API de Bloxlink
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code == 200:
-        datos = response.json()
-        roblox_id = datos.get("robloxId", "No encontrado")
-        
-        # Crear el Embed decorado
-        embed = discord.Embed(
-            title=f"{usuario_discord.display_name} [{usuario_discord.id}]",
-            color=discord.Color.blue()
-        )
-        
-        # Cuerpo del mensaje estructurado
-        embed.add_field(
-            name="Users Connected:",
-            value=f"{usuario_discord.mention} [{roblox_id}]",
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-        
-    else:
-        # Embed con el mensaje de error solicitado
-        embed_error = discord.Embed(
-            description="❌ Users not founded / doesnt exists",
-            color=discord.Color.red()
-        )
-        await ctx.send(embed=embed_error)
+const PREFIX = "!";
+const BLOXLINK_API_KEY = "8fe9f751-9316-4fe1-82f7-2438e97db65a";
+
+client.on('messageCreate', async (message) => {
+    // Ignorar mensajes de bots o que no empiecen con el prefijo
+    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+
+    const args = message.content.slice(PREFIX.length).trim().split(/+/);
+    const command = args.shift().toLowerCase();
+
+    if (command === 'search') {
+        // Obtener el usuario mencionado o por ID
+        const targetUser = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
+
+        if (!targetUser) {
+            return message.reply("Por favor, menciona a un usuario o provee un ID válido.");
+        }
+
+        const url = `https://api.bloxlink.biz/v3/user/${targetUser.id}`;
+
+        try {
+            const response = await axios.get(url, {
+                headers: { "Authorization": BLOXLINK_API_KEY }
+            });
+
+            const robloxId = response.data.robloxId || "No encontrado";
+
+            // Crear el Embed de éxito
+            const embed = new EmbedBuilder()
+                .setTitle(`${targetUser.displayName} [${targetUser.id}]`)
+                .setColor(0x0099FF) // Azul
+                .addFields({
+                    name: "Users Connected:",
+                    value: `<@${targetUser.id}> [${robloxId}]`,
