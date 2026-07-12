@@ -43,7 +43,8 @@ client.on('messageCreate', async (message) => {
             return message.channel.send({ embeds: [errorEmbed] });
         }
 
-        const url = `https://api.bloxlink.biz/v3/user/${targetUser.id}`;
+        // URL CORREGIDA: v3api.bloxlink.biz
+        const url = `https://v3api.bloxlink.biz/v3/user/${targetUser.id}`;
 
         try {
             const response = await axios.get(url, {
@@ -67,10 +68,9 @@ client.on('messageCreate', async (message) => {
         } catch (error) {
             let errorText = "❌ Users not founded / doesnt exists";
 
-            // Diagnóstico detallado del error de la API
             if (error.response) {
                 if (error.response.status === 401 || error.response.status === 403) {
-                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida, expiró o no pertenece a este servidor.`;
+                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida o no pertenece a este servidor.`;
                 } else if (error.response.status === 404) {
                     errorText = "❌ Users not founded / doesnt exists (Este Discord no está vinculado en Bloxlink)";
                 } else {
@@ -98,7 +98,8 @@ client.on('messageCreate', async (message) => {
             return message.channel.send({ embeds: [errorEmbed] });
         }
 
-        const url = `https://api.bloxlink.biz/v3/roblox/${robloxId}`;
+        // URL CORREGIDA: v3api.bloxlink.biz
+        const url = `https://v3api.bloxlink.biz/v3/roblox/${robloxId}`;
 
         try {
             const response = await axios.get(url, {
@@ -130,7 +131,7 @@ client.on('messageCreate', async (message) => {
 
             if (error.response) {
                 if (error.response.status === 401 || error.response.status === 403) {
-                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida, expiró o no tiene accesos.`;
+                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida o no tiene accesos.`;
                 } else if (error.response.status === 404) {
                     errorText = "❌ Users not founded / doesnt exists (Este ID de Roblox no está en los registros de Bloxlink)";
                 } else {
