@@ -14,6 +14,56 @@ const CHANNEL_ID = '1499992706514948170';
 // Almacenamiento temporal en memoria para los días ocupados
 const diasReclamados = {};
 
+const diasSemana = [
+    { label: 'Lunes', value: 'lunes' },
+    { label: 'Martes', value: 'martes' },
+    { label: 'Miércoles', value: 'miercoles' },
+    { label: 'Jueves', value: 'jueves' },
+    { label: 'Viernes', value: 'viernes' },
+    { label: 'Sábado', value: 'sabado' },
+    { label: 'Domingo', value: 'domingo' }
+];
+
+// Función para generar el Embed con el estado actual de los días
+function construirEmbed() {
+    let descripcion = '¿Como funciona? En el apartado de abajo selecciona un día para reclamarlo. Si un día ya está ocupado, aparecerá asignado a su respectivo usuario.\n\n**📅 Estado de la semana:**\n';
+
+    for (const dia of diasSemana) {
+        const usuarioId = diasReclamados[dia.value];
+        if (usuarioId) {
+            descripcion += `• **${dia.label}:** <@${usuarioId}>\n`;
+        } else {
+            descripcion += `• **${dia.label}:** 🟢 Disponible\n`;
+        }
+    }
+
+    return new EmbedBuilder()
+        .setTitle('**Calendario semanal de actividades**')
+        .setDescription(descripcion)
+        .setColor('#2F3136');
+}
+
+// Función para generar el menú desplegable actualizado
+function construirMenu() {
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId('calendario_menu')
+        .setPlaceholder('Choco Opciones');
+
+    for (const dia of diasSemana) {
+        const estaOcupado = diasReclamados[dia.value];
+        
+        menu.addOptions(
+            new StringSelectMenuOptionBuilder()
+                .setLabel(estaOcupado ? `${dia.label} (Ocupado)` : dia.label)
+                .setValue(dia.value)
+                .setDescription(estaOcupado ? 'Este día ya no está disponible.' : 'Disponible para reclamar')
+                .setEmoji(estaOcupado ? '🔒' : '📅')
+        );
+    }
+
+    return new ActionRowBuilder().addComponents(menu);
+}
+
 client.once('ready', async () => {
     console.log(`¡Bot encendido y conectado como ${client.user.tag}!`);
 
@@ -21,30 +71,12 @@ client.once('ready', async () => {
         const channel = await client.channels.fetch(CHANNEL_ID);
         if (!channel) return console.error('No se pudo encontrar el canal especificado.');
 
-        // 1. Creamos el Embed
-        const embed = new EmbedBuilder()
-            .setTitle('**Calendario semanal de actividades**')
-            .setDescription('¿Como funciona? En el apartado de abajo aparecerá una interfaz de botones que te desplazara a todos los días (similar a lo de tickets), en donde si un día estará ocupado, este no podrás reclamarlo.')
-            .setColor('#2F3136');
-
-        // 2. Creamos el Menú Desplegable con el nombre "Choco Opciones"
-        const menu = new StringSelectMenuBuilder()
-            .setCustomId('calendario_menu')
-            .setPlaceholder('Choco Opciones')
-            .addOptions(
-                new StringSelectMenuOptionBuilder().setLabel('Lunes').setValue('lunes').setDescription('Disponible para reclamar').setEmoji('📅'),
-                new StringSelectMenuOptionBuilder().setLabel('Martes').setValue('martes').setDescription('Disponible para reclamar').setEmoji('📅'),
-                new StringSelectMenuOptionBuilder().setLabel('Miércoles').setValue('miercoles').setDescription('Disponible para reclamar').setEmoji('📅'),
-                new StringSelectMenuOptionBuilder().setLabel('Jueves').setValue('jueves').setDescription('Disponible para reclamar').setEmoji('📅'),
-                new StringSelectMenuOptionBuilder().setLabel('Viernes').setValue('viernes').setDescription('Disponible para reclamar').setEmoji('📅'),
-                new StringSelectMenuOptionBuilder().setLabel('Sábado').setValue('sabado').setDescription('Disponible para reclamar').setEmoji('📅'),
-                new StringSelectMenuOptionBuilder().setLabel('Domingo').setValue('domingo').setDescription('Disponible para reclamar').setEmoji('📅'),
-            );
-
-        const row = new ActionRowBuilder().addComponents(menu);
-
-        // 3. Enviamos el mensaje al canal configurado
-        await channel.send({ embeds: [embed], components: [row] });
+        // Enviamos el mensaje inicial con el embed y el menú
+        await channel.send({ 
+            embeds: [construirEmbed()], 
+            components: [construirMenu()] 
+        });
+        
         console.log('¡Calendario enviado exitosamente al canal configurado!');
 
     } catch (error) {
@@ -69,39 +101,13 @@ client.on('interactionCreate', async interaction => {
     // 2. Reclamar el día
     diasReclamados[diaSeleccionado] = usuarioId;
 
-    // 3. Reconstruir el menú para actualizar visualmente qué días están ocupados
-    const diasSemana = [
-        { label: 'Lunes', value: 'lunes' },
-        { label: 'Martes', value: 'martes' },
-        { label: 'Miércoles', value: 'miercoles' },
-        { label: 'Jueves', value: 'jueves' },
-        { label: 'Viernes', value: 'viernes' },
-        { label: 'Sábado', value: 'sabado' },
-        { label: 'Domingo', value: 'domingo' }
-    ];
+    // 3. Actualizamos el mensaje original con el nuevo Embed (con las menciones) y el nuevo menú
+    await interaction.update({ 
+        embeds: [construirEmbed()], 
+        components: [construirMenu()] 
+    });
 
-    const menuActualizado = new StringSelectMenuBuilder()
-        .setCustomId('calendario_menu')
-        .setPlaceholder('Choco Opciones');
-
-    for (const dia of diasSemana) {
-        const estaOcupado = diasReclamados[dia.value];
-        
-        menuActualizado.addOptions(
-            new StringSelectMenuOptionBuilder()
-                .setLabel(estaOcupado ? `${dia.label} ❌ (Ocupado)` : dia.label)
-                .setValue(dia.value)
-                .setDescription(estaOcupado ? 'Este día ya no está disponible.' : 'Disponible para reclamar')
-                .setEmoji(estaOcupado ? '🔒' : '📅')
-        );
-    }
-
-    const rowActualizada = new ActionRowBuilder().addComponents(menuActualizado);
-
-    // 4. Actualizamos el mensaje original con el nuevo menú
-    await interaction.update({ components: [rowActualizada] });
-
-    // 5. Avisamos al usuario de forma privada
+    // 4. Avisamos al usuario de forma privada
     await interaction.followUp({ 
         content: `✅ Has reclamado con éxito el día **${diaSeleccionado}**.`, 
         ephemeral: true 
