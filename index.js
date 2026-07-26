@@ -1,6 +1,19 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+const http = require('http');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } = require('discord.js');
 
+// 1. Mini servidor HTTP para satisfacer el escaneo de puertos de Render
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('¡El bot de Discord está activo y funcionando!');
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Servidor HTTP escuchando en el puerto ${PORT}`);
+});
+
+// 2. Configuración del Bot de Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -94,7 +107,7 @@ client.on('interactionCreate', async interaction => {
     if (Object.values(diasReclamados).includes(usuarioId)) {
         return interaction.reply({ 
             content: '❌ Ya has reclamado un día de la semana. Solo se permite un día por persona.', 
-            ephemeral: true 
+            flags: MessageFlags.Ephemeral 
         });
     }
 
@@ -102,7 +115,7 @@ client.on('interactionCreate', async interaction => {
     if (diasReclamados[diaSeleccionado]) {
         return interaction.reply({ 
             content: '❌ Este día ya ha sido reclamado por otra persona.', 
-            ephemeral: true 
+            flags: MessageFlags.Ephemeral 
         });
     }
 
@@ -118,7 +131,7 @@ client.on('interactionCreate', async interaction => {
     // 5. Avisamos al usuario de forma privada
     await interaction.followUp({ 
         content: `✅ Has reclamado con éxito el día **${diaSeleccionado}**.`, 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
     });
 });
 
