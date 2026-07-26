@@ -1,17 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const axios = require('axios');
-const http = require('http');
-require('dotenv').config();
-
-// === VINCULACIÓN DEL PUERTO (Para Render) ===
-const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot online e operativo.');
-}).listen(PORT, () => {
-    console.log(`Servidor web escuchando en el puerto ${PORT}`);
-});
-// ============================================
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 
 const client = new Client({
     intents: [
@@ -21,132 +8,104 @@ const client = new Client({
     ]
 });
 
-const PREFIX = "!";
+const CHANNEL_ID = '1499992706514948170';
 
-// Tu API Key de prueba asignada por defecto
-const BLOXLINK_API_KEY = process.env.BLOXLINK_API_KEY || "785d27c1-04a6-4685-9482-c29643e05def";
+// Almacenamiento temporal en memoria para los días ocupados
+const diasReclamados = {};
 
-client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+client.once('ready', async () => {
+    console.log(`¡Bot encendido y conectado como ${client.user.tag}!`);
 
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+    try {
+        const channel = await client.channels.fetch(CHANNEL_ID);
+        if (!channel) return console.error('No se pudo encontrar el canal especificado.');
 
-    // 🔍 1. COMANDO DISCORDSEARCH
-    if (command === 'discordsearch') {
-        const targetUser = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
+        // 1. Creamos el Embed
+        const embed = new EmbedBuilder()
+            .setTitle('**Calendario semanal de actividades**')
+            .setDescription('¿Como funciona? En el apartado de abajo aparecerá una interfaz de botones que te desplazara a todos los días (similar a lo de tickets), en donde si un día estará ocupado, este no podrás reclamarlo.')
+            .setColor('#2F3136');
 
-        if (!targetUser) {
-            const errorEmbed = new EmbedBuilder()
-                .setDescription("❌ Error: No se pudo encontrar a ese usuario en Discord. Verifica el ID o la mención.")
-                .setColor(0xFF0000);
-            return message.channel.send({ embeds: [errorEmbed] });
-        }
+        // 2. Creamos el Menú Desplegable con el nombre "Choco Opciones"
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId('calendario_menu')
+            .setPlaceholder('Choco Opciones')
+            .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('Lunes').setValue('lunes').setDescription('Disponible para reclamar').setEmoji('📅'),
+                new StringSelectMenuOptionBuilder().setLabel('Martes').setValue('martes').setDescription('Disponible para reclamar').setEmoji('📅'),
+                new StringSelectMenuOptionBuilder().setLabel('Miércoles').setValue('miercoles').setDescription('Disponible para reclamar').setEmoji('📅'),
+                new StringSelectMenuOptionBuilder().setLabel('Jueves').setValue('jueves').setDescription('Disponible para reclamar').setEmoji('📅'),
+                new StringSelectMenuOptionBuilder().setLabel('Viernes').setValue('viernes').setDescription('Disponible para reclamar').setEmoji('📅'),
+                new StringSelectMenuOptionBuilder().setLabel('Sábado').setValue('sabado').setDescription('Disponible para reclamar').setEmoji('📅'),
+                new StringSelectMenuOptionBuilder().setLabel('Domingo').setValue('domingo').setDescription('Disponible para reclamar').setEmoji('📅'),
+            );
 
-        // URL Oficial de la API v3
-        const url = `https://api.bloxlink.biz/v3/user/${targetUser.id}`;
+        const row = new ActionRowBuilder().addComponents(menu);
 
-        try {
-            const response = await axios.get(url, {
-                headers: { "Authorization": BLOXLINK_API_KEY }
-            });
+        // 3. Enviamos el mensaje al canal configurado
+        await channel.send({ embeds: [embed], components: [row] });
+        console.log('¡Calendario enviado exitosamente al canal configurado!');
 
-            const robloxId = response.data.robloxId;
-            if (!robloxId) throw new Error("NOT_LINKED");
-
-            const embed = new EmbedBuilder()
-                .setTitle(`${targetUser.displayName} [${targetUser.id}]`)
-                .setColor(0x0099FF)
-                .addFields({
-                    name: "Users Connected:",
-                    value: `<@${targetUser.id}> [${robloxId}]`,
-                    inline: false
-                });
-
-            await message.channel.send({ embeds: [embed] });
-
-        } catch (error) {
-            let errorText = "❌ Users not founded / doesnt exists";
-
-            if (error.response) {
-                if (error.response.status === 401 || error.response.status === 403) {
-                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida o no pertenece a este servidor.`;
-                } else if (error.response.status === 404) {
-                    errorText = "❌ Users not founded / doesnt exists (Este Discord no está vinculado en Bloxlink)";
-                } else {
-                    errorText = `⚠️ **Bloxlink Error (${error.response.status}):** ${error.response.data?.error || error.message}`;
-                }
-            } else if (error.message === "NOT_LINKED") {
-                errorText = "❌ Users not founded / doesnt exists (Cuenta sin ID de Roblox asociado)";
-            } else {
-                errorText = `💻 **Internal Error:** ${error.message}`;
-            }
-
-            const errorEmbed = new EmbedBuilder().setDescription(errorText).setColor(0xFF0000);
-            await message.channel.send({ embeds: [errorEmbed] });
-        }
-    }
-
-    // 🔍 2. COMANDO ROBLOXSEARCH
-    if (command === 'robloxsearch') {
-        const robloxId = args[0];
-
-        if (!robloxId || isNaN(robloxId)) {
-            const errorEmbed = new EmbedBuilder()
-                .setDescription("❌ Por favor, provee un ID de Roblox puramente numérico.")
-                .setColor(0xFF0000);
-            return message.channel.send({ embeds: [errorEmbed] });
-        }
-
-        // URL Oficial de la API v3
-        const url = `https://api.bloxlink.biz/v3/roblox/${robloxId}`;
-
-        try {
-            const response = await axios.get(url, {
-                headers: { "Authorization": BLOXLINK_API_KEY }
-            });
-
-            const discordUsers = response.data.discordUsers || [];
-            if (discordUsers.length === 0) throw new Error("NOT_LINKED");
-
-            const primaryDiscordId = discordUsers[0];
-            const primaryUser = await client.users.fetch(primaryDiscordId).catch(() => null);
-            const displayTitle = primaryUser ? `${primaryUser.displayName} [${primaryUser.id}]` : `Roblox User [${robloxId}]`;
-
-            const connectedList = discordUsers.map(discordId => `<@${discordId}> [${robloxId}]`).join('\n');
-
-            const embed = new EmbedBuilder()
-                .setTitle(displayTitle)
-                .setColor(0x0099FF)
-                .addFields({
-                    name: "Users Connected:",
-                    value: connectedList,
-                    inline: false
-                });
-
-            await message.channel.send({ embeds: [embed] });
-
-        } catch (error) {
-            let errorText = "❌ Users not founded / doesnt exists";
-
-            if (error.response) {
-                if (error.response.status === 401 || error.response.status === 403) {
-                    errorText = `🔑 **Bloxlink Error (${error.response.status}):** La API Key de prueba es inválida o no tiene accesos.`;
-                } else if (error.response.status === 404) {
-                    errorText = "❌ Users not founded / doesnt exists (Este ID de Roblox no está en los registros de Bloxlink)";
-                } else {
-                    errorText = `⚠️ **Bloxlink Error (${error.response.status}):** ${error.response.data?.error || error.message}`;
-                }
-            } else if (error.message === "NOT_LINKED") {
-                errorText = "❌ Users not founded / doesnt exists (Este ID de Roblox no tiene Discords conectados)";
-            } else {
-                errorText = `💻 **Internal Error:** ${error.message}`;
-            }
-
-            const errorEmbed = new EmbedBuilder().setDescription(errorText).setColor(0xFF0000);
-            await message.channel.send({ embeds: [errorEmbed] });
-        }
+    } catch (error) {
+        console.error('Error al enviar el calendario al iniciar:', error);
     }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isStringSelectMenu() || interaction.customId !== 'calendario_menu') return;
+
+    const diaSeleccionado = interaction.values[0];
+    const usuarioId = interaction.user.id;
+
+    // 1. Validar si el día ya está ocupado
+    if (diasReclamados[diaSeleccionado]) {
+        return interaction.reply({ 
+            content: '❌ Este día ya ha sido reclamado por otra persona.', 
+            ephemeral: true 
+        });
+    }
+
+    // 2. Reclamar el día
+    diasReclamados[diaSeleccionado] = usuarioId;
+
+    // 3. Reconstruir el menú para actualizar visualmente qué días están ocupados
+    const diasSemana = [
+        { label: 'Lunes', value: 'lunes' },
+        { label: 'Martes', value: 'martes' },
+        { label: 'Miércoles', value: 'miercoles' },
+        { label: 'Jueves', value: 'jueves' },
+        { label: 'Viernes', value: 'viernes' },
+        { label: 'Sábado', value: 'sabado' },
+        { label: 'Domingo', value: 'domingo' }
+    ];
+
+    const menuActualizado = new StringSelectMenuBuilder()
+        .setCustomId('calendario_menu')
+        .setPlaceholder('Choco Opciones');
+
+    for (const dia of diasSemana) {
+        const estaOcupado = diasReclamados[dia.value];
+        
+        menuActualizado.addOptions(
+            new StringSelectMenuOptionBuilder()
+                .setLabel(estaOcupado ? `${dia.label} ❌ (Ocupado)` : dia.label)
+                .setValue(dia.value)
+                .setDescription(estaOcupado ? 'Este día ya no está disponible.' : 'Disponible para reclamar')
+                .setEmoji(estaOcupado ? '🔒' : '📅')
+        );
+    }
+
+    const rowActualizada = new ActionRowBuilder().addComponents(menuActualizado);
+
+    // 4. Actualizamos el mensaje original con el nuevo menú
+    await interaction.update({ components: [rowActualizada] });
+
+    // 5. Avisamos al usuario de forma privada
+    await interaction.followUp({ 
+        content: `✅ Has reclamado con éxito el día **${diaSeleccionado}**.`, 
+        ephemeral: true 
+    });
+});
+
+// Inicia sesión con el token de tu bot
+client.login('TU_TOKEN_AQUI');
