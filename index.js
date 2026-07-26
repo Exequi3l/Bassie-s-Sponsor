@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 
 const client = new Client({
@@ -107,5 +108,5 @@ client.on('interactionCreate', async interaction => {
     });
 });
 
-// Inicia sesión con el token de tu bot
-client.login('TU_TOKEN_AQUI');
+// Inicia sesión usando la variable de entorno configurada en Render
+client.login(process.env.DISCORD_TOKEN);
