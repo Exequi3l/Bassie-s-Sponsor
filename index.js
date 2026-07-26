@@ -90,7 +90,15 @@ client.on('interactionCreate', async interaction => {
     const diaSeleccionado = interaction.values[0];
     const usuarioId = interaction.user.id;
 
-    // 1. Validar si el día ya está ocupado
+    // 1. Validar si el usuario ya reclamó algún día esta semana
+    if (Object.values(diasReclamados).includes(usuarioId)) {
+        return interaction.reply({ 
+            content: '❌ Ya has reclamado un día de la semana. Solo se permite un día por persona.', 
+            ephemeral: true 
+        });
+    }
+
+    // 2. Validar si el día ya está ocupado por otra persona
     if (diasReclamados[diaSeleccionado]) {
         return interaction.reply({ 
             content: '❌ Este día ya ha sido reclamado por otra persona.', 
@@ -98,16 +106,16 @@ client.on('interactionCreate', async interaction => {
         });
     }
 
-    // 2. Reclamar el día
+    // 3. Reclamar el día
     diasReclamados[diaSeleccionado] = usuarioId;
 
-    // 3. Actualizamos el mensaje original con el nuevo Embed (con las menciones) y el nuevo menú
+    // 4. Actualizamos el mensaje original con el nuevo Embed y menú
     await interaction.update({ 
         embeds: [construirEmbed()], 
         components: [construirMenu()] 
     });
 
-    // 4. Avisamos al usuario de forma privada
+    // 5. Avisamos al usuario de forma privada
     await interaction.followUp({ 
         content: `✅ Has reclamado con éxito el día **${diaSeleccionado}**.`, 
         ephemeral: true 
