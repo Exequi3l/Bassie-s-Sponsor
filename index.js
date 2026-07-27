@@ -124,9 +124,9 @@ async function actualizarMensaje() {
 }
 
 // =================================================================
-// RECORDATORIO 1: SUFRIMIENTO DEL DÍA (15 Minutos de espera)
+// RECORDATORIO 1: SUFRIMIENTO DEL DÍA
 // =================================================================
-async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
+async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId, tiempoEsperaMs = 15 * 60 * 1000) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
@@ -147,9 +147,6 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
 
     if (temporizadorSufrimiento) clearTimeout(temporizadorSufrimiento);
 
-    // 15 Minutos = 15 * 60 * 1000 ms
-    const TIEMPO_ESPERA_MS = 15 * 60 * 1000;
-
     temporizadorSufrimiento = setTimeout(async () => {
         if (!actividadSufrimientoConfirmada) {
             try {
@@ -159,13 +156,13 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
 
             await enviarAlertaActividadesLibres(channel);
         }
-    }, TIEMPO_ESPERA_MS);
+    }, tiempoEsperaMs);
 }
 
 // =================================================================
-// RECORDATORIO 2: PREGUNTA Y GUSTOS DÍA (1 Hora de espera)
+// RECORDATORIO 2: PREGUNTA Y GUSTOS DÍA
 // =================================================================
-async function enviarRecordatorioPregunta(channel, diaValor, usuarioId) {
+async function enviarRecordatorioPregunta(channel, diaValor, usuarioId, tiempoEsperaMs = 60 * 60 * 1000) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
@@ -186,9 +183,6 @@ async function enviarRecordatorioPregunta(channel, diaValor, usuarioId) {
 
     if (temporizadorPregunta) clearTimeout(temporizadorPregunta);
 
-    // 1 Hora = 60 * 60 * 1000 ms
-    const TIEMPO_ESPERA_MS = 60 * 60 * 1000;
-
     temporizadorPregunta = setTimeout(async () => {
         if (!actividadPreguntaConfirmada) {
             try {
@@ -198,7 +192,7 @@ async function enviarRecordatorioPregunta(channel, diaValor, usuarioId) {
 
             await enviarAlertaActividadesLibres(channel);
         }
-    }, TIEMPO_ESPERA_MS);
+    }, tiempoEsperaMs);
 }
 
 // Función auxiliar para emitir la alerta de Actividades Libres
@@ -235,25 +229,24 @@ client.once('ready', async () => {
 
         const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
-        // CRON 1: 12:00 AM UTC (00:00) -> Sufrimiento del Día
+        // CRON 1: 12:00 AM UTC (00:00) -> Sufrimiento del Día (15 min espera real)
         cron.schedule('0 0 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
-            // Ghost Ping
             const ghost = await channel.send(`<@&${ROL_GHOST_PING_ID}>`);
             await ghost.delete();
 
             if (diasReclamados[diaHoy]) {
-                await enviarRecordatorioSufrimiento(channel, diaHoy, diasReclamados[diaHoy]);
+                await enviarRecordatorioSufrimiento(channel, diaHoy, diasReclamados[diaHoy], 15 * 60 * 1000);
             }
         }, { timezone: "Etc/UTC" });
 
-        // CRON 2: 4:00 PM UTC (16:00) -> Pregunta y Gustos día
+        // CRON 2: 4:00 PM UTC (16:00) -> Pregunta y Gustos día (1 hora espera real)
         cron.schedule('0 16 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
             if (diasReclamados[diaHoy]) {
-                await enviarRecordatorioPregunta(channel, diaHoy, diasReclamados[diaHoy]);
+                await enviarRecordatorioPregunta(channel, diaHoy, diasReclamados[diaHoy], 60 * 60 * 1000);
             }
         }, { timezone: "Etc/UTC" });
 
@@ -312,7 +305,7 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // 4. INDICIO DE ACTIVIDAD (Sufrimiento o Pregunta y Gustos)
+    // 4. INDICIO DE ACTIVIDAD
     if (interaction.isButton() && (interaction.customId === 'indicio_actividad_sufrimiento' || interaction.customId === 'indicio_actividad_pregunta')) {
         if (interaction.customId === 'indicio_actividad_sufrimiento') {
             actividadSufrimientoConfirmada = true;
@@ -371,27 +364,37 @@ client.on('messageCreate', async m => {
         await ghost.delete();
     }
 
-    // .test1 -> Prueba recordatorio "Sufrimiento del día" (15 min espera)
+    // .test1 -> Prueba recordatorio "Sufrimiento del día" (Espera RÁPIDA de 10 segundos)
     if (cmd === '.test1') {
         try { await m.delete(); } catch(e){}
 
         const usuarioPrueba = m.author.id;
-        await enviarRecordatorioSufrimiento(m.channel, 'lunes', usuarioPrueba);
+        // Se le pasa 10000 ms (10 segundos) para probar
+        await enviarRecordatorioSufrimiento(m.channel, 'lunes', usuarioPrueba, 10000);
     }
 
-    // .test2 -> Prueba alerta "Actividades Libres"
+    // .test2 -> Prueba directa de la alerta "Actividades Libres"
     if (cmd === '.test2') {
         try { await m.delete(); } catch(e){}
 
         await enviarAlertaActividadesLibres(m.channel);
     }
 
-    // .test4 -> Prueba recordatorio "Pregunta y Gustos día" (1 hora espera)
+    // .test3 -> Prueba del mensaje "Pregunta y Gustos" con temporizador RÁPIDO de 10 segundos
+    if (cmd === '.test3') {
+        try { await m.delete(); } catch(e){}
+
+        const usuarioPrueba = m.author.id;
+        // Se le pasa 10000 ms (10 segundos) para probar que envíe el mensaje automático
+        await enviarRecordatorioPregunta(m.channel, 'lunes', usuarioPrueba, 10000);
+    }
+
+    // .test4 -> Prueba del mensaje "Pregunta y Gustos" con tiempo REAL (1 hora)
     if (cmd === '.test4') {
         try { await m.delete(); } catch(e){}
 
         const usuarioPrueba = m.author.id;
-        await enviarRecordatorioPregunta(m.channel, 'lunes', usuarioPrueba);
+        await enviarRecordatorioPregunta(m.channel, 'lunes', usuarioPrueba, 60 * 60 * 1000);
     }
 });
 
