@@ -35,8 +35,8 @@ const client = new Client({
 });
 
 const CHANNEL_ID = '1499992706514948170';
-const ROL_GHOST_PING_ID = '1530899659701227721';
 const ROL_ACTIVIDADES_LIBRES_ID = '1531098555538866277';
+const ROL_STAFF_REINICIO_ID = '1531150257210003456';
 
 let diasReclamados = {};
 let mensajeCalendario = null;
@@ -60,7 +60,7 @@ const diasSemana = [
 
 // Generar los 3 Embeds principales
 function construirEmbeds() {
-    let descripcion = 'ꕀ ﹒ ¿Cómo funciona? \nEn el apartado de abajo selecciona un día para reclamarlo, esto es una organizacion para las actividades semanales. Si un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
+    let descripcion = '**E**n el apartado de abajo selecciona un día para reclamarlo, esto es una organización para las actividades semanales. \n**S**i un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
 
     for (const dia of diasSemana) {
         const usuarioId = diasReclamados[dia.value];
@@ -124,9 +124,9 @@ async function actualizarMensaje() {
 }
 
 // =================================================================
-// 1. RECORDATORIO: SUFRIMIENTO DEL DÍA
+// 1. RECORDATORIO: SUFRIMIENTO DEL DÍA (15 Minutos de espera)
 // =================================================================
-async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId, tiempoEsperaMs = 15 * 60 * 1000) {
+async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
@@ -147,6 +147,8 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId, tiemp
 
     if (temporizadorSufrimiento) clearTimeout(temporizadorSufrimiento);
 
+    const TIEMPO_15_MINUTOS = 15 * 60 * 1000;
+
     temporizadorSufrimiento = setTimeout(async () => {
         if (!actividadSufrimientoConfirmada) {
             try {
@@ -156,13 +158,13 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId, tiemp
 
             await enviarAlertaActividadesLibres(channel);
         }
-    }, tiempoEsperaMs);
+    }, TIEMPO_15_MINUTOS);
 }
 
 // =================================================================
-// 2. RECORDATORIO: GUSTOS Y CANASTAS DÍA
+// 2. RECORDATORIO: GUSTOS Y CANASTAS DÍA (1 Hora de espera)
 // =================================================================
-async function enviarRecordatorioGustos(channel, diaValor, usuarioId, tiempoEsperaMs = 60 * 60 * 1000) {
+async function enviarRecordatorioGustos(channel, diaValor, usuarioId) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
@@ -183,6 +185,8 @@ async function enviarRecordatorioGustos(channel, diaValor, usuarioId, tiempoEspe
 
     if (temporizadorGustos) clearTimeout(temporizadorGustos);
 
+    const TIEMPO_1_HORA = 60 * 60 * 1000;
+
     temporizadorGustos = setTimeout(async () => {
         if (!actividadGustosConfirmada) {
             try {
@@ -192,7 +196,7 @@ async function enviarRecordatorioGustos(channel, diaValor, usuarioId, tiempoEspe
 
             await enviarAlertaActividadesLibres(channel);
         }
-    }, tiempoEsperaMs);
+    }, TIEMPO_1_HORA);
 }
 
 // =================================================================
@@ -231,24 +235,33 @@ client.once('ready', async () => {
 
         const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
-        // CRON 1: 12:00 AM UTC (00:00) -> Sufrimiento del Día (15 min de espera)
-        cron.schedule('0 0 * * *', async () => {
-            const diaHoy = diasNombreUTC[new Date().getUTCDay()];
+        // CRON 1: 12:30 AM GMT (00:30 UTC) -> Reiniciar Calendario y Mensaje al Staff
+        cron.schedule('30 0 * * *', async () => {
+            // Reiniciar días asignados
+            diasReclamados = {};
+            await actualizarMensaje();
 
-            const ghost = await channel.send(`<@&${ROL_GHOST_PING_ID}>`);
-            await ghost.delete();
-
-            if (diasReclamados[diaHoy]) {
-                await enviarRecordatorioSufrimiento(channel, diaHoy, diasReclamados[diaHoy], 15 * 60 * 1000);
-            }
+            // Mensaje de reinicio
+            await channel.send({
+                content: `# __<@&${ROL_STAFF_REINICIO_ID}>__\n> Saludos equipo del staff, se ha reiniciado correctamente el calendario de actividades. Esto indica que ya pueden elegir su día en <#${CHANNEL_ID}>. ¡Nos vemos!`
+            });
         }, { timezone: "Etc/UTC" });
 
-        // CRON 2: 4:00 PM UTC (16:00) -> Gustos y Canastas día (1 hora de espera)
+        // CRON 2: 4:00 PM GMT (16:00 UTC) -> Gustos y Canastas día
         cron.schedule('0 16 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
             if (diasReclamados[diaHoy]) {
-                await enviarRecordatorioGustos(channel, diaHoy, diasReclamados[diaHoy], 60 * 60 * 1000);
+                await enviarRecordatorioGustos(channel, diaHoy, diasReclamados[diaHoy]);
+            }
+        }, { timezone: "Etc/UTC" });
+
+        // CRON 3: 11:55 PM GMT (23:55 UTC) -> Sufrimiento del Día
+        cron.schedule('55 23 * * *', async () => {
+            const diaHoy = diasNombreUTC[new Date().getUTCDay()];
+
+            if (diasReclamados[diaHoy]) {
+                await enviarRecordatorioSufrimiento(channel, diaHoy, diasReclamados[diaHoy]);
             }
         }, { timezone: "Etc/UTC" });
 
@@ -345,48 +358,6 @@ client.on('interactionCreate', async interaction => {
 
             await interaction.message.edit({ components: [new ActionRowBuilder().addComponents(botonReclamado)] });
         } catch (e) {}
-    }
-});
-
-// =================================================================
-// COMANDOS DE TESTEO REORGANIZADOS
-// =================================================================
-client.on('messageCreate', async m => {
-    if (m.author.bot) return;
-    const cmd = m.content.trim().toLowerCase();
-
-    // .test -> Reiniciar calendario + Ghost Ping
-    if (cmd === '.test') {
-        try { await m.delete(); } catch(e){}
-
-        diasReclamados = {};
-        await actualizarMensaje();
-
-        const ghost = await m.channel.send(`<@&${ROL_GHOST_PING_ID}>`);
-        await ghost.delete();
-    }
-
-    // .test2 -> Sufrimiento del día (Espera de 10 segundos)
-    if (cmd === '.test2') {
-        try { await m.delete(); } catch(e){}
-
-        const usuarioPrueba = m.author.id;
-        await enviarRecordatorioSufrimiento(m.channel, 'lunes', usuarioPrueba, 10000);
-    }
-
-    // .test3 -> Recordatorio / Alerta directa de Actividades Libres
-    if (cmd === '.test3') {
-        try { await m.delete(); } catch(e){}
-
-        await enviarAlertaActividadesLibres(m.channel);
-    }
-
-    // .test4 -> Gustos y Canastas día (Espera de 10 segundos)
-    if (cmd === '.test4') {
-        try { await m.delete(); } catch(e){}
-
-        const usuarioPrueba = m.author.id;
-        await enviarRecordatorioGustos(m.channel, 'lunes', usuarioPrueba, 10000);
     }
 });
 
