@@ -24,7 +24,7 @@ server.listen(PORT, () => {
     console.log(`Servidor HTTP escuchando en el puerto ${PORT}`);
 });
 
-// 2. Configuración del Bot
+// 2. Configuración del Bot y IDs
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds, 
@@ -34,7 +34,11 @@ const client = new Client({
     ]
 });
 
-const CHANNEL_ID = '1499992706514948170';
+const CHANNEL_ID = '1499992706514948170'; // Canal principal del calendario
+const CANAL_SUFRIMIENTO_ID = '1372697602985955388';
+const CANAL_ACTIVIDAD_GUSTOS_ID = '1444430795329503263';
+const CANAL_ENCUESTA_GUSTOS_ID = '1514030783902519316';
+
 const ROL_ACTIVIDADES_LIBRES_ID = '1531098555538866277';
 const ROL_STAFF_REINICIO_ID = '1531150257210003456';
 
@@ -124,9 +128,9 @@ async function actualizarMensaje() {
 }
 
 // =================================================================
-// 1. RECORDATORIO: SUFRIMIENTO DEL DÍA (15 Minutos de espera)
+// 1. RECORDATORIO: SUFRIMIENTO DEL DÍA
 // =================================================================
-async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
+async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId, tiempoEsperaMs = 15 * 60 * 1000) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
@@ -141,13 +145,11 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
     const row = new ActionRowBuilder().addComponents(botonIndicio);
 
     const mensajeRecordatorio = await channel.send({
-        content: `# Sufrimiento del día **${nombreDia}**\nPsss oye <@${usuarioId}>\nAquí tienes un pequeño recordatorio de que tienes que hacer el <#${CHANNEL_ID}> en unos 5 minutos, recuerda que si te demoras 15 minutos, otro miembro del staff lo hará por tí.`,
+        content: `# Sufrimiento del día **${nombreDia}**\nPsss oye <@${usuarioId}>\nAquí tienes un pequeño recordatorio de que tienes que hacer el <#${CANAL_SUFRIMIENTO_ID}> en unos 5 minutos, recuerda que si te demoras 15 minutos, otro miembro del staff lo hará por tí.`,
         components: [row]
     });
 
     if (temporizadorSufrimiento) clearTimeout(temporizadorSufrimiento);
-
-    const TIEMPO_15_MINUTOS = 15 * 60 * 1000;
 
     temporizadorSufrimiento = setTimeout(async () => {
         if (!actividadSufrimientoConfirmada) {
@@ -158,13 +160,13 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
 
             await enviarAlertaActividadesLibres(channel);
         }
-    }, TIEMPO_15_MINUTOS);
+    }, tiempoEsperaMs);
 }
 
 // =================================================================
-// 2. RECORDATORIO: GUSTOS Y CANASTAS DÍA (1 Hora de espera)
+// 2. RECORDATORIO: GUSTOS Y CANASTAS DÍA
 // =================================================================
-async function enviarRecordatorioGustos(channel, diaValor, usuarioId) {
+async function enviarRecordatorioGustos(channel, diaValor, usuarioId, tiempoEsperaMs = 60 * 60 * 1000) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
@@ -179,13 +181,11 @@ async function enviarRecordatorioGustos(channel, diaValor, usuarioId) {
     const row = new ActionRowBuilder().addComponents(botonIndicio);
 
     const mensajeRecordatorio = await channel.send({
-        content: `# Gustos y Canastas día **${nombreDia}**\nSaludos, momento de un pequeño recordatorio: \n> Buenos días <@${usuarioId}> Recuerda que esta es la hora en la que tienes que hacer la <#${CHANNEL_ID}> el día de hoy.\nAdemás, <@${usuarioId}> el día de hoy te toca hacer la encuesta de <#${CHANNEL_ID}> , por lo que es mejor que pienses que vas a colocar.\nRecuerden que si se demoran una hora, otros miembros del staff lo harán por ustedes.`,
+        content: `# Gustos y Canastas día **${nombreDia}**\nSaludos, momento de un pequeño recordatorio: \n> Buenos días <@${usuarioId}> Recuerda que esta es la hora en la que tienes que hacer la <#${CANAL_ACTIVIDAD_GUSTOS_ID}> el día de hoy.\nAdemás, <@${usuarioId}> el día de hoy te toca hacer la encuesta de <#${CANAL_ENCUESTA_GUSTOS_ID}> , por lo que es mejor que pienses que vas a colocar.\nRecuerden que si se demoran una hora, otros miembros del staff lo harán por ustedes.`,
         components: [row]
     });
 
     if (temporizadorGustos) clearTimeout(temporizadorGustos);
-
-    const TIEMPO_1_HORA = 60 * 60 * 1000;
 
     temporizadorGustos = setTimeout(async () => {
         if (!actividadGustosConfirmada) {
@@ -196,7 +196,7 @@ async function enviarRecordatorioGustos(channel, diaValor, usuarioId) {
 
             await enviarAlertaActividadesLibres(channel);
         }
-    }, TIEMPO_1_HORA);
+    }, tiempoEsperaMs);
 }
 
 // =================================================================
@@ -237,31 +237,29 @@ client.once('ready', async () => {
 
         // CRON 1: 12:30 AM GMT (00:30 UTC) -> Reiniciar Calendario y Mensaje al Staff
         cron.schedule('30 0 * * *', async () => {
-            // Reiniciar días asignados
             diasReclamados = {};
             await actualizarMensaje();
 
-            // Mensaje de reinicio
             await channel.send({
                 content: `# __<@&${ROL_STAFF_REINICIO_ID}>__\n> Saludos equipo del staff, se ha reiniciado correctamente el calendario de actividades. Esto indica que ya pueden elegir su día en <#${CHANNEL_ID}>. ¡Nos vemos!`
             });
         }, { timezone: "Etc/UTC" });
 
-        // CRON 2: 4:00 PM GMT (16:00 UTC) -> Gustos y Canastas día
+        // CRON 2: 4:00 PM GMT (16:00 UTC) -> Gustos y Canastas día (1 hora de espera)
         cron.schedule('0 16 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
             if (diasReclamados[diaHoy]) {
-                await enviarRecordatorioGustos(channel, diaHoy, diasReclamados[diaHoy]);
+                await enviarRecordatorioGustos(channel, diaHoy, diasReclamados[diaHoy], 60 * 60 * 1000);
             }
         }, { timezone: "Etc/UTC" });
 
-        // CRON 3: 11:55 PM GMT (23:55 UTC) -> Sufrimiento del Día
+        // CRON 3: 11:55 PM GMT (23:55 UTC) -> Sufrimiento del Día (15 min de espera)
         cron.schedule('55 23 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
             if (diasReclamados[diaHoy]) {
-                await enviarRecordatorioSufrimiento(channel, diaHoy, diasReclamados[diaHoy]);
+                await enviarRecordatorioSufrimiento(channel, diaHoy, diasReclamados[diaHoy], 15 * 60 * 1000);
             }
         }, { timezone: "Etc/UTC" });
 
@@ -358,6 +356,49 @@ client.on('interactionCreate', async interaction => {
 
             await interaction.message.edit({ components: [new ActionRowBuilder().addComponents(botonReclamado)] });
         } catch (e) {}
+    }
+});
+
+// =================================================================
+// COMANDOS DE TESTEO (Temporizadores de 10 segundos para pruebas)
+// =================================================================
+client.on('messageCreate', async m => {
+    if (m.author.bot) return;
+    const cmd = m.content.trim().toLowerCase();
+
+    // .test -> Reiniciar calendario + Alerta de reinicio al Staff
+    if (cmd === '.test') {
+        try { await m.delete(); } catch(e){}
+
+        diasReclamados = {};
+        await actualizarMensaje();
+
+        await m.channel.send({
+            content: `# __<@&${ROL_STAFF_REINICIO_ID}>__\n> Saludos equipo del staff, se ha reiniciado correctamente el calendario de actividades. Esto indica que ya pueden elegir su día en <#${CHANNEL_ID}>. ¡Nos vemos!`
+        });
+    }
+
+    // .test2 -> Prueba Sufrimiento del día (Espera rápida de 10 segundos)
+    if (cmd === '.test2') {
+        try { await m.delete(); } catch(e){}
+
+        const usuarioPrueba = m.author.id;
+        await enviarRecordatorioSufrimiento(m.channel, 'lunes', usuarioPrueba, 10000);
+    }
+
+    // .test3 -> Prueba Alerta directa de Actividades Libres
+    if (cmd === '.test3') {
+        try { await m.delete(); } catch(e){}
+
+        await enviarAlertaActividadesLibres(m.channel);
+    }
+
+    // .test4 -> Prueba Gustos y Canastas día (Espera rápida de 10 segundos)
+    if (cmd === '.test4') {
+        try { await m.delete(); } catch(e){}
+
+        const usuarioPrueba = m.author.id;
+        await enviarRecordatorioGustos(m.channel, 'lunes', usuarioPrueba, 10000);
     }
 });
 
