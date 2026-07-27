@@ -41,9 +41,12 @@ const ROL_ACTIVIDADES_LIBRES_ID = '1531098555538866277';
 let diasReclamados = {};
 let mensajeCalendario = null;
 
-// Control de actividad del día
-let actividadConfirmada = false;
-let temporizadorInactividad = null;
+// Control de actividades y temporizadores
+let actividadSufrimientoConfirmada = false;
+let temporizadorSufrimiento = null;
+
+let actividadPreguntaConfirmada = false;
+let temporizadorPregunta = null;
 
 const diasSemana = [
     { label: 'Lunes', value: 'lunes' },
@@ -121,16 +124,16 @@ async function actualizarMensaje() {
 }
 
 // =================================================================
-// FUNCIÓN PARA ENVIAR EL RECORDATORIO ("SUFRIMIENTO DEL DÍA")
+// RECORDATORIO 1: SUFRIMIENTO DEL DÍA (15 Minutos de espera)
 // =================================================================
-async function enviarRecordatorio(channel, diaValor, usuarioId) {
+async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
-    actividadConfirmada = false;
+    actividadSufrimientoConfirmada = false;
 
     const botonIndicio = new ButtonBuilder()
-        .setCustomId('indicio_actividad')
+        .setCustomId('indicio_actividad_sufrimiento')
         .setLabel('Dar Indicio de Actividad')
         .setEmoji('✅')
         .setStyle(ButtonStyle.Success);
@@ -138,41 +141,82 @@ async function enviarRecordatorio(channel, diaValor, usuarioId) {
     const row = new ActionRowBuilder().addComponents(botonIndicio);
 
     const mensajeRecordatorio = await channel.send({
-        content: `Sufrimiento del día **${nombreDia}**\nPsss oye <@${usuarioId}>\nAquí tienes un pequeño recordatorio de que tienes que hacer el <#${CHANNEL_ID}> en unos 5 minutos, recuerda que si te demoras 15 minutos, otro miembro del staff lo hará por tí.`,
+        content: `# Sufrimiento del día **${nombreDia}**\nPsss oye <@${usuarioId}>\nAquí tienes un pequeño recordatorio de que tienes que hacer el <#${CHANNEL_ID}> en unos 5 minutos, recuerda que si te demoras 15 minutos, otro miembro del staff lo hará por tí.`,
         components: [row]
     });
 
-    // Cancelar temporizador previo si existía
-    if (temporizadorInactividad) clearTimeout(temporizadorInactividad);
+    if (temporizadorSufrimiento) clearTimeout(temporizadorSufrimiento);
 
-    // Esperar 15 minutos (15 * 60 * 1000 ms)
+    // 15 Minutos = 15 * 60 * 1000 ms
     const TIEMPO_ESPERA_MS = 15 * 60 * 1000;
 
-    temporizadorInactividad = setTimeout(async () => {
-        if (!actividadConfirmada) {
-            // Deshabilitar botón original
+    temporizadorSufrimiento = setTimeout(async () => {
+        if (!actividadSufrimientoConfirmada) {
             try {
                 botonIndicio.setDisabled(true);
                 await mensajeRecordatorio.edit({ components: [new ActionRowBuilder().addComponents(botonIndicio)] });
             } catch (err) {}
 
-            // Enviar mensaje de alerta al rol de actividades libres
-            const botonReclamar = new ButtonBuilder()
-                .setCustomId('reclamar_actividad_libre')
-                .setLabel('Reclamar Actividad')
-                .setEmoji('🙋‍♂️')
-                .setStyle(ButtonStyle.Primary);
-
-            await channel.send({
-                content: `# <@&${ROL_ACTIVIDADES_LIBRES_ID}>\n> Hay una actividad disponible que el usuario no ha dado indicio de actividad para realizarla. ¡Por favor apreté el botón debajo para así reclamarla!`,
-                components: [new ActionRowBuilder().addComponents(botonReclamar)]
-            });
+            await enviarAlertaActividadesLibres(channel);
         }
     }, TIEMPO_ESPERA_MS);
 }
 
 // =================================================================
-// EVENTOS DEL CLIENTE
+// RECORDATORIO 2: PREGUNTA Y GUSTOS DÍA (1 Hora de espera)
+// =================================================================
+async function enviarRecordatorioPregunta(channel, diaValor, usuarioId) {
+    const diaObjeto = diasSemana.find(d => d.value === diaValor);
+    const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
+
+    actividadPreguntaConfirmada = false;
+
+    const botonIndicio = new ButtonBuilder()
+        .setCustomId('indicio_actividad_pregunta')
+        .setLabel('Dar Indicio de Actividad')
+        .setEmoji('✅')
+        .setStyle(ButtonStyle.Success);
+
+    const row = new ActionRowBuilder().addComponents(botonIndicio);
+
+    const mensajeRecordatorio = await channel.send({
+        content: `# Pregunta y Gustos día **${nombreDia}**\nSaludos, momento de un pequeño recordatorio: \n> Buenos días <@${usuarioId}> Recuerda que esta es la hora en la que tienes que hacer la <#${CHANNEL_ID}> el día de hoy.\nAdemás, <@${usuarioId}> el día de hoy te toca hacer la encuesta de <#${CHANNEL_ID}> , por lo que es mejor que pienses que vas a colocar.\nRecuerden que si se demoran una hora, otros miembros del staff lo harán por ustedes.`,
+        components: [row]
+    });
+
+    if (temporizadorPregunta) clearTimeout(temporizadorPregunta);
+
+    // 1 Hora = 60 * 60 * 1000 ms
+    const TIEMPO_ESPERA_MS = 60 * 60 * 1000;
+
+    temporizadorPregunta = setTimeout(async () => {
+        if (!actividadPreguntaConfirmada) {
+            try {
+                botonIndicio.setDisabled(true);
+                await mensajeRecordatorio.edit({ components: [new ActionRowBuilder().addComponents(botonIndicio)] });
+            } catch (err) {}
+
+            await enviarAlertaActividadesLibres(channel);
+        }
+    }, TIEMPO_ESPERA_MS);
+}
+
+// Función auxiliar para emitir la alerta de Actividades Libres
+async function enviarAlertaActividadesLibres(channel) {
+    const botonReclamar = new ButtonBuilder()
+        .setCustomId('reclamar_actividad_libre')
+        .setLabel('Reclamar Actividad')
+        .setEmoji('🙋‍♂️')
+        .setStyle(ButtonStyle.Primary);
+
+    await channel.send({
+        content: `# <@&${ROL_ACTIVIDADES_LIBRES_ID}>\n> Hay una actividad disponible que el usuario no ha dado indicio de actividad para realizarla. ¡Por favor apreté el botón debajo para así reclamarla!`,
+        components: [new ActionRowBuilder().addComponents(botonReclamar)]
+    });
+}
+
+// =================================================================
+// EVENTOS DEL CLIENTE Y PROGRAMACIONES CRON
 // =================================================================
 client.once('ready', async () => {
     console.log(`Bot conectado como ${client.user.tag}`);
@@ -189,23 +233,28 @@ client.once('ready', async () => {
             await actualizarMensaje();
         }
 
-        // Programador diario a las 12:00 AM GMT (00:00 UTC)
+        const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+        // CRON 1: 12:00 AM UTC (00:00) -> Sufrimiento del Día
         cron.schedule('0 0 * * *', async () => {
-            const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
             // Ghost Ping
             const ghost = await channel.send(`<@&${ROL_GHOST_PING_ID}>`);
             await ghost.delete();
 
-            // Si hay alguien asignado hoy, enviar recordatorio
             if (diasReclamados[diaHoy]) {
-                await enviarRecordatorio(channel, diaHoy, diasReclamados[diaHoy]);
+                await enviarRecordatorioSufrimiento(channel, diaHoy, diasReclamados[diaHoy]);
             }
+        }, { timezone: "Etc/UTC" });
 
-            // Reiniciar estado
-            diasReclamados = {};
-            await actualizarMensaje();
+        // CRON 2: 4:00 PM UTC (16:00) -> Pregunta y Gustos día
+        cron.schedule('0 16 * * *', async () => {
+            const diaHoy = diasNombreUTC[new Date().getUTCDay()];
+
+            if (diasReclamados[diaHoy]) {
+                await enviarRecordatorioPregunta(channel, diaHoy, diasReclamados[diaHoy]);
+            }
         }, { timezone: "Etc/UTC" });
 
     } catch (e) {
@@ -259,21 +308,25 @@ client.on('interactionCreate', async interaction => {
             }
         } catch (err) {
             console.error('Error al gestionar rol:', err);
-            return interaction.reply({ content: '❌ Ocurrió un error al intentar cambiar el rol. Revisa que el bot tenga permisos superiores al rol.', flags: MessageFlags.Ephemeral });
+            return interaction.reply({ content: '❌ Ocurrió un error al intentar cambiar el rol. Revisa los permisos del bot.', flags: MessageFlags.Ephemeral });
         }
     }
 
-    // 4. INDICIO DE ACTIVIDAD (Presionado por el usuario asignado)
-    if (interaction.isButton() && interaction.customId === 'indicio_actividad') {
-        actividadConfirmada = true;
-        if (temporizadorInactividad) clearTimeout(temporizadorInactividad);
+    // 4. INDICIO DE ACTIVIDAD (Sufrimiento o Pregunta y Gustos)
+    if (interaction.isButton() && (interaction.customId === 'indicio_actividad_sufrimiento' || interaction.customId === 'indicio_actividad_pregunta')) {
+        if (interaction.customId === 'indicio_actividad_sufrimiento') {
+            actividadSufrimientoConfirmada = true;
+            if (temporizadorSufrimiento) clearTimeout(temporizadorSufrimiento);
+        } else {
+            actividadPreguntaConfirmada = true;
+            if (temporizadorPregunta) clearTimeout(temporizadorPregunta);
+        }
 
         await interaction.reply({ content: '✅ Has dado indicio de actividad correctamente. ¡Éxito!', flags: MessageFlags.Ephemeral });
         
-        // Deshabilitar el botón
         try {
             const botonDeshabilitado = new ButtonBuilder()
-                .setCustomId('indicio_actividad')
+                .setCustomId(interaction.customId)
                 .setLabel('Actividad Confirmada')
                 .setEmoji('✅')
                 .setStyle(ButtonStyle.Success)
@@ -283,7 +336,7 @@ client.on('interactionCreate', async interaction => {
         } catch (e) {}
     }
 
-    // 5. RECLAMAR ACTIVIDAD LIBRE (Por otro usuario de staff)
+    // 5. RECLAMAR ACTIVIDAD LIBRE
     if (interaction.isButton() && interaction.customId === 'reclamar_actividad_libre') {
         await interaction.reply({ content: `✅ <@${interaction.user.id}> ha reclamado la actividad libre.` });
 
@@ -307,7 +360,7 @@ client.on('messageCreate', async m => {
     if (m.author.bot) return;
     const cmd = m.content.trim().toLowerCase();
 
-    // 1. .test -> Reinicio manual del calendario + Ghost Ping
+    // .test -> Reiniciar calendario + Ghost Ping
     if (cmd === '.test') {
         try { await m.delete(); } catch(e){}
 
@@ -318,28 +371,27 @@ client.on('messageCreate', async m => {
         await ghost.delete();
     }
 
-    // 2. .test1 -> Prueba del mensaje de Recordatorio ("Sufrimiento del día")
+    // .test1 -> Prueba recordatorio "Sufrimiento del día" (15 min espera)
     if (cmd === '.test1') {
         try { await m.delete(); } catch(e){}
 
         const usuarioPrueba = m.author.id;
-        await enviarRecordatorio(m.channel, 'lunes', usuarioPrueba);
+        await enviarRecordatorioSufrimiento(m.channel, 'lunes', usuarioPrueba);
     }
 
-    // 3. .test2 -> Prueba del mensaje de alerta para Actividades Libres
+    // .test2 -> Prueba alerta "Actividades Libres"
     if (cmd === '.test2') {
         try { await m.delete(); } catch(e){}
 
-        const botonReclamar = new ButtonBuilder()
-            .setCustomId('reclamar_actividad_libre')
-            .setLabel('Reclamar Actividad')
-            .setEmoji('🙋‍♂️')
-            .setStyle(ButtonStyle.Primary);
+        await enviarAlertaActividadesLibres(m.channel);
+    }
 
-        await m.channel.send({
-            content: `# <@&${ROL_ACTIVIDADES_LIBRES_ID}>\n> Hay una actividad disponible que el usuario no ha dado indicio de actividad para realizarla. ¡Por favor apreté el botón debajo para así reclamarla!`,
-            components: [new ActionRowBuilder().addComponents(botonReclamar)]
-        });
+    // .test4 -> Prueba recordatorio "Pregunta y Gustos día" (1 hora espera)
+    if (cmd === '.test4') {
+        try { await m.delete(); } catch(e){}
+
+        const usuarioPrueba = m.author.id;
+        await enviarRecordatorioPregunta(m.channel, 'lunes', usuarioPrueba);
     }
 });
 
