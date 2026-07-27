@@ -1,34 +1,27 @@
 require('dotenv').config();
 const http = require('http');
 const cron = require('node-cron');
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 
-// 1. Mini servidor HTTP para Render (evita el error de puertos)
+// 1. Mini servidor HTTP para Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('¡El bot de Discord está activo y funcionando!');
+    res.end('¡Bot de Calendario Activo!');
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Servidor HTTP escuchando en el puerto ${PORT}`);
-});
+server.listen(PORT);
 
 // 2. Configuración del Bot
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
 const CHANNEL_ID = '1499992706514948170';
 const ROL_GHOST_PING_ID = '1530899659701227721';
 
-// Almacenamiento en memoria para los días ocupados
 let diasReclamados = {};
-let mensajeCalendario = null; // Guardará la referencia al mensaje principal
+let mensajeCalendario = null;
 
 const diasSemana = [
     { label: 'Lunes', value: 'lunes' },
@@ -40,186 +33,126 @@ const diasSemana = [
     { label: 'Domingo', value: 'domingo' }
 ];
 
-// Función para construir el Embed con el diseño estético solicitado
-function construirEmbed() {
-    let descripcion = 'ꕀ ﹒ ¿Cómo funciona? \nEn el apartado de abajo selecciona un día para reclamarlo, esto es una organizacion para las actividades semanales. \nSi un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
+// Generar los dos Embeds
+function construirEmbeds() {
+    let descripcion = 'ꕀ ﹒ ¿Cómo funciona? \nEn el apartado de abajo selecciona un día para reclamarlo, esto es una organizacion para las actividades semanales.\n\n';
 
     for (const dia of diasSemana) {
         const usuarioId = diasReclamados[dia.value];
-        if (usuarioId) {
-            descripcion += `⤷ ${dia.label} ﹕ <@${usuarioId}>\n`;
-        } else {
-            descripcion += `⤷ ${dia.label} ﹕ 🟢 Disponible\n`;
-        }
+        descripcion += `⤷ ${dia.label} ﹕ ${usuarioId ? `<@${usuarioId}>` : '🟢 Disponible'}\n`;
     }
 
-    return new EmbedBuilder()
+    const embedPrincipal = new EmbedBuilder()
         .setTitle('ⳋৎㅤ︵ㅤCalendario semanal de actividadesㅤ.ᐟ')
         .setDescription(descripcion)
         .setColor('#2F3136');
+
+    const embedCancelar = new EmbedBuilder()
+        .setDescription('**¿Deseas cancelar tu actividad?**\nSi ya habías reclamado un día y quieres liberarlo, presiona el botón de abajo.')
+        .setColor('#ED4245'); // Color rojo
+
+    return [embedPrincipal, embedCancelar];
 }
 
-// Función para construir el Menú Desplegable dinámico
-function construirMenu() {
+// Generar los componentes (Menú y Botón)
+function construirComponentes() {
     const menu = new StringSelectMenuBuilder()
         .setCustomId('calendario_menu')
-        .setPlaceholder('Choco Opciones');
-
-    for (const dia of diasSemana) {
-        const estaOcupado = diasReclamados[dia.value];
-        
-        menu.addOptions(
-            new StringSelectMenuOptionBuilder()
-                .setLabel(estaOcupado ? `${dia.label} (Ocupado)` : dia.label)
+        .setPlaceholder('Choco Opciones')
+        .addOptions(diasSemana.map(dia => {
+            const ocupado = diasReclamados[dia.value];
+            return new StringSelectMenuOptionBuilder()
+                .setLabel(ocupado ? `${dia.label} (Ocupado)` : dia.label)
                 .setValue(dia.value)
-                .setDescription(estaOcupado ? 'Este día ya no está disponible.' : 'Disponible para reclamar')
-                .setEmoji(estaOcupado ? '🔒' : '📅')
-        );
-    }
+                .setEmoji(ocupado ? '🔒' : '📅');
+        }));
 
-    return new ActionRowBuilder().addComponents(menu);
+    const botonCancelar = new ButtonBuilder()
+        .setCustomId('cancelar_actividad')
+        .setLabel('Cancelar Selección')
+        .setEmoji('✖️')
+        .setStyle(ButtonStyle.Danger);
+
+    return [
+        new ActionRowBuilder().addComponents(menu),
+        new ActionRowBuilder().addComponents(botonCancelar)
+    ];
 }
 
-// =================================================================
-// FUNCIÓN PRINCIPAL DE REINICIO Y GHOST PING
-// =================================================================
-async function reiniciarCalendario() {
-    console.log('🔄 Ejecutando reinicio de calendario...');
-
-    // 1. Limpiar todos los días reclamados
-    diasReclamados = {};
-
-    try {
-        const channel = await client.channels.fetch(CHANNEL_ID);
-        if (!channel) return console.error('No se encontró el canal especificado.');
-
-        // 2. Si no tenemos la referencia guardada, la buscamos
-        if (!mensajeCalendario) {
-            const recentMessages = await channel.messages.fetch({ limit: 10 });
-            mensajeCalendario = recentMessages.find(m => 
-                m.author.id === client.user.id && 
-                m.embeds.length > 0 && 
-                m.embeds[0].title?.includes('Calendario semanal')
-            );
-        }
-
-        // 3. Re-editar el mensaje existente para poner los puestos disponibles
-        if (mensajeCalendario) {
-            await mensajeCalendario.edit({ 
-                embeds: [construirEmbed()], 
-                components: [construirMenu()] 
-            });
-            console.log('✅ Calendario re-editado exitosamente.');
-        } else {
-            console.error('⚠️ No se encontró el mensaje del calendario para re-editar.');
-        }
-
-        // 4. Ghost Ping al Rol
-        const pingMsg = await channel.send(`<@&${ROL_GHOST_PING_ID}>`);
-        await pingMsg.delete();
-        console.log('👻 Ghost Ping realizado correctamente.');
-
-    } catch (error) {
-        console.error('Error durante el reinicio del calendario:', error);
+async function actualizarMensaje() {
+    if (mensajeCalendario) {
+        await mensajeCalendario.edit({
+            embeds: construirEmbeds(),
+            components: construirComponentes()
+        });
     }
 }
 
 client.once('ready', async () => {
-    console.log(`¡Bot encendido y conectado como ${client.user.tag}!`);
+    console.log(`Bot listo: ${client.user.tag}`);
+    const channel = await client.channels.fetch(CHANNEL_ID);
+    
+    // Buscar mensaje previo para no repetir
+    const recent = await channel.messages.fetch({ limit: 10 });
+    mensajeCalendario = recent.find(m => m.author.id === client.user.id && m.embeds.length > 0);
 
-    try {
-        const channel = await client.channels.fetch(CHANNEL_ID);
-        if (!channel) return console.error('No se pudo encontrar el canal especificado.');
-
-        // Busca si ya existe un mensaje previo del bot con el calendario
-        const recentMessages = await channel.messages.fetch({ limit: 10 });
-        mensajeCalendario = recentMessages.find(m => 
-            m.author.id === client.user.id && 
-            m.embeds.length > 0 && 
-            m.embeds[0].title?.includes('Calendario semanal')
-        );
-
-        if (mensajeCalendario) {
-            await mensajeCalendario.edit({ 
-                embeds: [construirEmbed()], 
-                components: [construirMenu()] 
-            });
-            console.log('¡Calendario previo encontrado y actualizado!');
-        } else {
-            mensajeCalendario = await channel.send({ 
-                embeds: [construirEmbed()], 
-                components: [construirMenu()] 
-            });
-            console.log('¡Nuevo mensaje de calendario enviado!');
-        }
-
-        // =================================================================
-        // CRON JOB: 12:00 AM GMT (00:00 UTC) todos los días
-        // =================================================================
-        cron.schedule('0 0 * * *', async () => {
-            console.log('⏰ Hora programada alcanzada (12:00 AM GMT).');
-            await reiniciarCalendario();
-        }, {
-            timezone: "Etc/UTC"
-        });
-
-    } catch (error) {
-        console.error('Error al inicializar el bot o el canal:', error);
+    if (!mensajeCalendario) {
+        mensajeCalendario = await channel.send({ embeds: construirEmbeds(), components: construirComponentes() });
+    } else {
+        await actualizarMensaje();
     }
+
+    // Cron a las 12:00 AM GMT
+    cron.schedule('0 0 * * *', async () => {
+        diasReclamados = {};
+        await actualizarMensaje();
+        const ghost = await channel.send(`<@&${ROL_GHOST_PING_ID}>`);
+        await ghost.delete();
+    }, { timezone: "Etc/UTC" });
 });
 
-// Listener para el comando manual ".test"
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-
-    if (message.content.trim() === '.test') {
-        try {
-            await message.delete();
-        } catch (err) {
-            // Ignora si no hay permisos de borrado
-        }
-
-        await reiniciarCalendario();
-    }
-});
-
-// Listener para interacciones del menú desplegable
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isStringSelectMenu() || interaction.customId !== 'calendario_menu') return;
+    // MANEJO DEL MENÚ (RECLAMAR)
+    if (interaction.isStringSelectMenu() && interaction.customId === 'calendario_menu') {
+        const dia = interaction.values[0];
+        const user = interaction.user.id;
 
-    const diaSeleccionado = interaction.values[0];
-    const usuarioId = interaction.user.id;
+        if (Object.values(diasReclamados).includes(user)) {
+            return interaction.reply({ content: '❌ Ya tienes un día asignado. Cancela primero para elegir otro.', flags: MessageFlags.Ephemeral });
+        }
+        if (diasReclamados[dia]) {
+            return interaction.reply({ content: '❌ Este día ya está ocupado.', flags: MessageFlags.Ephemeral });
+        }
 
-    // 1. Validar si el usuario ya reclamó algún día esta semana
-    if (Object.values(diasReclamados).includes(usuarioId)) {
-        return interaction.reply({ 
-            content: '❌ Ya has reclamado un día de la semana. Solo se permite un día por persona.', 
-            flags: MessageFlags.Ephemeral 
-        });
+        diasReclamados[dia] = user;
+        await interaction.update({ embeds: construirEmbeds(), components: construirComponentes() });
     }
 
-    // 2. Validar si el día ya está ocupado por otra persona
-    if (diasReclamados[diaSeleccionado]) {
-        return interaction.reply({ 
-            content: '❌ Este día ya ha sido reclamado por otra persona.', 
-            flags: MessageFlags.Ephemeral 
-        });
+    // MANEJO DEL BOTÓN (CANCELAR)
+    if (interaction.isButton() && interaction.customId === 'cancelar_actividad') {
+        const user = interaction.user.id;
+        // Buscar qué día tiene este usuario
+        const diaOcupado = Object.keys(diasReclamados).find(key => diasReclamados[key] === user);
+
+        if (!diaOcupado) {
+            return interaction.reply({ content: '❌ No tienes ningún día reclamado para cancelar.', flags: MessageFlags.Ephemeral });
+        }
+
+        delete diasReclamados[diaOcupado]; // Liberar el día
+        await interaction.update({ embeds: construirEmbeds(), components: construirComponentes() });
+        await interaction.followUp({ content: '✅ Has liberado tu día correctamente.', flags: MessageFlags.Ephemeral });
     }
+});
 
-    // 3. Reclamar el día
-    diasReclamados[diaSeleccionado] = usuarioId;
-
-    // 4. Actualizamos el mensaje original con el nuevo Embed y menú
-    await interaction.update({ 
-        embeds: [construirEmbed()], 
-        components: [construirMenu()] 
-    });
-
-    // 5. Avisamos al usuario de forma privada
-    await interaction.followUp({ 
-        content: `✅ Has reclamado con éxito el día **${diaSeleccionado}**.`, 
-        flags: MessageFlags.Ephemeral 
-    });
+// Comando .test manual
+client.on('messageCreate', async m => {
+    if (m.content === '.test' && !m.author.bot) {
+        diasReclamados = {};
+        await actualizarMensaje();
+        const ghost = await m.channel.send(`<@&${ROL_GHOST_PING_ID}>`);
+        await ghost.delete();
+        try { await m.delete(); } catch(e){}
+    }
 });
 
 client.login(process.env.DISCORD_TOKEN);
