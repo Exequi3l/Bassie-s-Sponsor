@@ -45,8 +45,8 @@ let mensajeCalendario = null;
 let actividadSufrimientoConfirmada = false;
 let temporizadorSufrimiento = null;
 
-let actividadPreguntaConfirmada = false;
-let temporizadorPregunta = null;
+let actividadGustosConfirmada = false;
+let temporizadorGustos = null;
 
 const diasSemana = [
     { label: 'Lunes', value: 'lunes' },
@@ -124,7 +124,7 @@ async function actualizarMensaje() {
 }
 
 // =================================================================
-// RECORDATORIO 1: SUFRIMIENTO DEL DÍA
+// 1. RECORDATORIO: SUFRIMIENTO DEL DÍA
 // =================================================================
 async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId, tiempoEsperaMs = 15 * 60 * 1000) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
@@ -160,16 +160,16 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId, tiemp
 }
 
 // =================================================================
-// RECORDATORIO 2: PREGUNTA Y GUSTOS DÍA
+// 2. RECORDATORIO: GUSTOS Y CANASTAS DÍA
 // =================================================================
-async function enviarRecordatorioPregunta(channel, diaValor, usuarioId, tiempoEsperaMs = 60 * 60 * 1000) {
+async function enviarRecordatorioGustos(channel, diaValor, usuarioId, tiempoEsperaMs = 60 * 60 * 1000) {
     const diaObjeto = diasSemana.find(d => d.value === diaValor);
     const nombreDia = diaObjeto ? diaObjeto.label : 'Hoy';
 
-    actividadPreguntaConfirmada = false;
+    actividadGustosConfirmada = false;
 
     const botonIndicio = new ButtonBuilder()
-        .setCustomId('indicio_actividad_pregunta')
+        .setCustomId('indicio_actividad_gustos')
         .setLabel('Dar Indicio de Actividad')
         .setEmoji('✅')
         .setStyle(ButtonStyle.Success);
@@ -177,14 +177,14 @@ async function enviarRecordatorioPregunta(channel, diaValor, usuarioId, tiempoEs
     const row = new ActionRowBuilder().addComponents(botonIndicio);
 
     const mensajeRecordatorio = await channel.send({
-        content: `# Pregunta y Gustos día **${nombreDia}**\nSaludos, momento de un pequeño recordatorio: \n> Buenos días <@${usuarioId}> Recuerda que esta es la hora en la que tienes que hacer la <#${CHANNEL_ID}> el día de hoy.\nAdemás, <@${usuarioId}> el día de hoy te toca hacer la encuesta de <#${CHANNEL_ID}> , por lo que es mejor que pienses que vas a colocar.\nRecuerden que si se demoran una hora, otros miembros del staff lo harán por ustedes.`,
+        content: `# Gustos y Canastas día **${nombreDia}**\nSaludos, momento de un pequeño recordatorio: \n> Buenos días <@${usuarioId}> Recuerda que esta es la hora en la que tienes que hacer la <#${CHANNEL_ID}> el día de hoy.\nAdemás, <@${usuarioId}> el día de hoy te toca hacer la encuesta de <#${CHANNEL_ID}> , por lo que es mejor que pienses que vas a colocar.\nRecuerden que si se demoran una hora, otros miembros del staff lo harán por ustedes.`,
         components: [row]
     });
 
-    if (temporizadorPregunta) clearTimeout(temporizadorPregunta);
+    if (temporizadorGustos) clearTimeout(temporizadorGustos);
 
-    temporizadorPregunta = setTimeout(async () => {
-        if (!actividadPreguntaConfirmada) {
+    temporizadorGustos = setTimeout(async () => {
+        if (!actividadGustosConfirmada) {
             try {
                 botonIndicio.setDisabled(true);
                 await mensajeRecordatorio.edit({ components: [new ActionRowBuilder().addComponents(botonIndicio)] });
@@ -195,7 +195,9 @@ async function enviarRecordatorioPregunta(channel, diaValor, usuarioId, tiempoEs
     }, tiempoEsperaMs);
 }
 
-// Función auxiliar para emitir la alerta de Actividades Libres
+// =================================================================
+// 3. ALERTA: ACTIVIDADES LIBRES
+// =================================================================
 async function enviarAlertaActividadesLibres(channel) {
     const botonReclamar = new ButtonBuilder()
         .setCustomId('reclamar_actividad_libre')
@@ -229,7 +231,7 @@ client.once('ready', async () => {
 
         const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
-        // CRON 1: 12:00 AM UTC (00:00) -> Sufrimiento del Día (15 min espera real)
+        // CRON 1: 12:00 AM UTC (00:00) -> Sufrimiento del Día (15 min de espera)
         cron.schedule('0 0 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
@@ -241,12 +243,12 @@ client.once('ready', async () => {
             }
         }, { timezone: "Etc/UTC" });
 
-        // CRON 2: 4:00 PM UTC (16:00) -> Pregunta y Gustos día (1 hora espera real)
+        // CRON 2: 4:00 PM UTC (16:00) -> Gustos y Canastas día (1 hora de espera)
         cron.schedule('0 16 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
             if (diasReclamados[diaHoy]) {
-                await enviarRecordatorioPregunta(channel, diaHoy, diasReclamados[diaHoy], 60 * 60 * 1000);
+                await enviarRecordatorioGustos(channel, diaHoy, diasReclamados[diaHoy], 60 * 60 * 1000);
             }
         }, { timezone: "Etc/UTC" });
 
@@ -258,7 +260,7 @@ client.once('ready', async () => {
 // Listener de interacciones (Menús y Botones)
 client.on('interactionCreate', async interaction => {
     
-    // 1. SELECCIÓN DE DÍA (Menú Desplegable)
+    // 1. SELECCIÓN DE DÍA
     if (interaction.isStringSelectMenu() && interaction.customId === 'calendario_menu') {
         const dia = interaction.values[0];
         const user = interaction.user.id;
@@ -306,13 +308,13 @@ client.on('interactionCreate', async interaction => {
     }
 
     // 4. INDICIO DE ACTIVIDAD
-    if (interaction.isButton() && (interaction.customId === 'indicio_actividad_sufrimiento' || interaction.customId === 'indicio_actividad_pregunta')) {
+    if (interaction.isButton() && (interaction.customId === 'indicio_actividad_sufrimiento' || interaction.customId === 'indicio_actividad_gustos')) {
         if (interaction.customId === 'indicio_actividad_sufrimiento') {
             actividadSufrimientoConfirmada = true;
             if (temporizadorSufrimiento) clearTimeout(temporizadorSufrimiento);
         } else {
-            actividadPreguntaConfirmada = true;
-            if (temporizadorPregunta) clearTimeout(temporizadorPregunta);
+            actividadGustosConfirmada = true;
+            if (temporizadorGustos) clearTimeout(temporizadorGustos);
         }
 
         await interaction.reply({ content: '✅ Has dado indicio de actividad correctamente. ¡Éxito!', flags: MessageFlags.Ephemeral });
@@ -347,7 +349,7 @@ client.on('interactionCreate', async interaction => {
 });
 
 // =================================================================
-// COMANDOS DE TESTEO
+// COMANDOS DE TESTEO REORGANIZADOS
 // =================================================================
 client.on('messageCreate', async m => {
     if (m.author.bot) return;
@@ -364,37 +366,27 @@ client.on('messageCreate', async m => {
         await ghost.delete();
     }
 
-    // .test1 -> Prueba recordatorio "Sufrimiento del día" (Espera RÁPIDA de 10 segundos)
-    if (cmd === '.test1') {
+    // .test2 -> Sufrimiento del día (Espera de 10 segundos)
+    if (cmd === '.test2') {
         try { await m.delete(); } catch(e){}
 
         const usuarioPrueba = m.author.id;
-        // Se le pasa 10000 ms (10 segundos) para probar
         await enviarRecordatorioSufrimiento(m.channel, 'lunes', usuarioPrueba, 10000);
     }
 
-    // .test2 -> Prueba directa de la alerta "Actividades Libres"
-    if (cmd === '.test2') {
+    // .test3 -> Recordatorio / Alerta directa de Actividades Libres
+    if (cmd === '.test3') {
         try { await m.delete(); } catch(e){}
 
         await enviarAlertaActividadesLibres(m.channel);
     }
 
-    // .test3 -> Prueba del mensaje "Pregunta y Gustos" con temporizador RÁPIDO de 10 segundos
-    if (cmd === '.test3') {
-        try { await m.delete(); } catch(e){}
-
-        const usuarioPrueba = m.author.id;
-        // Se le pasa 10000 ms (10 segundos) para probar que envíe el mensaje automático
-        await enviarRecordatorioPregunta(m.channel, 'lunes', usuarioPrueba, 10000);
-    }
-
-    // .test4 -> Prueba del mensaje "Pregunta y Gustos" con tiempo REAL (1 hora)
+    // .test4 -> Gustos y Canastas día (Espera de 10 segundos)
     if (cmd === '.test4') {
         try { await m.delete(); } catch(e){}
 
         const usuarioPrueba = m.author.id;
-        await enviarRecordatorioPregunta(m.channel, 'lunes', usuarioPrueba, 60 * 60 * 1000);
+        await enviarRecordatorioGustos(m.channel, 'lunes', usuarioPrueba, 10000);
     }
 });
 
