@@ -234,8 +234,8 @@ client.once('ready', async () => {
 
         const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
-        // CRON 1: 12:30 AM GMT (00:30 UTC) -> Reinicio de Calendario y Aviso al Staff
-        cron.schedule('30 0 * * *', async () => {
+        // CRON 1: Todos los Domingos a las 12:30 AM GMT (30 0 * * 0) -> Reinicio de Calendario y Aviso al Staff
+        cron.schedule('30 0 * * 0', async () => {
             diasReclamados = {};
             await actualizarMensaje();
 
