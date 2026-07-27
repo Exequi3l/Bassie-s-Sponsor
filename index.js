@@ -3,7 +3,7 @@ const http = require('http');
 const cron = require('node-cron');
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } = require('discord.js');
 
-// 1. Mini servidor HTTP para Render
+// 1. Mini servidor HTTP para Render (evita el error de puertos)
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('¡El bot de Discord está activo y funcionando!');
@@ -14,7 +14,7 @@ server.listen(PORT, () => {
     console.log(`Servidor HTTP escuchando en el puerto ${PORT}`);
 });
 
-// 2. Configuración del Bot con los Intents requeridos
+// 2. Configuración del Bot
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -40,26 +40,26 @@ const diasSemana = [
     { label: 'Domingo', value: 'domingo' }
 ];
 
-// Función para construir el Embed
+// Función para construir el Embed con el diseño estético solicitado
 function construirEmbed() {
-    let descripcion = '¿Como funciona? En el apartado de abajo selecciona un día para reclamarlo. Si un día ya está ocupado, aparecerá asignado a su respectivo usuario.\n\n**📅 Estado de la semana:**\n';
+    let descripcion = 'ꕀ ﹒ ¿Cómo funciona? \nEn el apartado de abajo selecciona un día para reclamarlo, esto es una organizacion para las actividades semanales. Si un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
 
     for (const dia of diasSemana) {
         const usuarioId = diasReclamados[dia.value];
         if (usuarioId) {
-            descripcion += `• **${dia.label}:** <@${usuarioId}>\n`;
+            descripcion += `⤷ ${dia.label} ﹕ <@${usuarioId}>\n`;
         } else {
-            descripcion += `• **${dia.label}:** 🟢 Disponible\n`;
+            descripcion += `⤷ ${dia.label} ﹕ 🟢 Disponible\n`;
         }
     }
 
     return new EmbedBuilder()
-        .setTitle('**Calendario semanal de actividades**')
+        .setTitle('ⳋৎㅤ︵ㅤCalendario semanal de actividadesㅤ.ᐟ')
         .setDescription(descripcion)
         .setColor('#2F3136');
 }
 
-// Función para construir el Menú Desplegable
+// Función para construir el Menú Desplegable dinámico
 function construirMenu() {
     const menu = new StringSelectMenuBuilder()
         .setCustomId('calendario_menu')
@@ -93,7 +93,7 @@ async function reiniciarCalendario() {
         const channel = await client.channels.fetch(CHANNEL_ID);
         if (!channel) return console.error('No se encontró el canal especificado.');
 
-        // 2. Si no tenemos referencia guardada del mensaje, la buscamos
+        // 2. Si no tenemos la referencia guardada, la buscamos
         if (!mensajeCalendario) {
             const recentMessages = await channel.messages.fetch({ limit: 10 });
             mensajeCalendario = recentMessages.find(m => 
@@ -103,7 +103,7 @@ async function reiniciarCalendario() {
             );
         }
 
-        // 3. Re-editar el mensaje para limpiar todos los puestos
+        // 3. Re-editar el mensaje existente para poner los puestos disponibles
         if (mensajeCalendario) {
             await mensajeCalendario.edit({ 
                 embeds: [construirEmbed()], 
@@ -153,12 +153,14 @@ client.once('ready', async () => {
             console.log('¡Nuevo mensaje de calendario enviado!');
         }
 
-        // Programador Tarea Automática (Cron Job) - 12:00 AM GMT (00:00 UTC)
+        // =================================================================
+        // CRON JOB: 12:00 AM GMT (00:00 UTC) todos los días
+        // =================================================================
         cron.schedule('0 0 * * *', async () => {
             console.log('⏰ Hora programada alcanzada (12:00 AM GMT).');
             await reiniciarCalendario();
         }, {
-            timezone: "Etc/UTC" // GMT / UTC
+            timezone: "Etc/UTC"
         });
 
     } catch (error) {
@@ -166,19 +168,17 @@ client.once('ready', async () => {
     }
 });
 
-// Listener para detectar el comando manual ".test"
+// Listener para el comando manual ".test"
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     if (message.content.trim() === '.test') {
-        // Borra el mensaje .test enviado por el usuario
         try {
             await message.delete();
         } catch (err) {
-            // Se ignora si no se tienen permisos para borrar mensajes en el canal
+            // Ignora si no hay permisos de borrado
         }
 
-        // Llama a la función de reinicio
         await reiniciarCalendario();
     }
 });
