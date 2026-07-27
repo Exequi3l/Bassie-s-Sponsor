@@ -42,7 +42,7 @@ const diasSemana = [
 
 // Función para construir el Embed con el diseño estético solicitado
 function construirEmbed() {
-    let descripcion = 'ꕀ ﹒ ¿Cómo funciona? \nEn el apartado de abajo selecciona un día para reclamarlo, esto es una organizacion para las actividades semanales. Si un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
+    let descripcion = 'ꕀ ﹒ ¿Cómo funciona? \nEn el apartado de abajo selecciona un día para reclamarlo, esto es una organizacion para las actividades semanales. \nSi un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
 
     for (const dia of diasSemana) {
         const usuarioId = diasReclamados[dia.value];
