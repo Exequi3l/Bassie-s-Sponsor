@@ -35,8 +35,8 @@ const client = new Client({
 });
 
 // ID de canales
-const CANAL_CALENDARIO_ID = '1524491614683402280'; // Donde vive el calendario principal
-const CANAL_AVISOS_ID = '1380321494298792147';     // Donde se envían recordatorios y alertas
+const CANAL_CALENDARIO_ID = '1533241970384961599'; // NUEVO CANAL DE PRUEBAS
+const CANAL_AVISOS_ID = '1380321494298792147';     
 const CANAL_SUFRIMIENTO_ID = '1372697602985955388';
 const CANAL_ACTIVIDAD_GUSTOS_ID = '1444430795329503263';
 const CANAL_ENCUESTA_GUSTOS_ID = '1514030783902519316';
@@ -64,7 +64,7 @@ const diasSemana = [
     { label: 'Domingo', value: 'domingo' }
 ];
 
-// Generar los 2 Embeds principales (Calendario + Cancelar)
+// Generar los 4 Embeds
 function construirEmbeds() {
     let descripcion = '**E**n el apartado de abajo selecciona un día para reclamarlo, esto es una organización para las actividades semanales. \n**S**i un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
 
@@ -73,16 +73,26 @@ function construirEmbeds() {
         descripcion += `⤷ ${dia.label} ﹕ ${usuarioId ? `<@${usuarioId}>` : '🟢 Disponible'}\n`;
     }
 
-    const embedPrincipal = new EmbedBuilder()
-        .setTitle('ⳋৎㅤ︵ㅤCalendario semanal de actividadesㅤ.ᐟ')
+    const embedPregunta = new EmbedBuilder()
+        .setTitle('❓ Pregunta del Día')
         .setDescription(descripcion)
-        .setColor('#2F3136');
+        .setColor('#3498DB'); 
+
+    const embedGustos = new EmbedBuilder()
+        .setTitle('🧺 Gustos Canastosos')
+        .setDescription('Espacio dedicado a compartir esos placeres culposos o gustos raros.')
+        .setColor('#F1C40F'); 
+
+    const embedSufrimiento = new EmbedBuilder()
+        .setTitle('😩 Sufrimiento del Día')
+        .setDescription('Desahógate un poco sobre lo peor o más frustrante que te pasó hoy.')
+        .setColor('#E74C3C'); 
 
     const embedCancelar = new EmbedBuilder()
         .setDescription('**¿Deseas cancelar tu actividad?**\nSi ya habías reclamado un día y quieres liberarlo, presiona el botón de abajo.')
-        .setColor('#ED4245');
+        .setColor('#2F3136'); 
 
-    return [embedPrincipal, embedCancelar];
+    return [embedPregunta, embedGustos, embedSufrimiento, embedCancelar];
 }
 
 // Generar los botones y el menú desplegable
@@ -134,10 +144,16 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
         .setEmoji('✅')
         .setStyle(ButtonStyle.Success);
 
-    const row = new ActionRowBuilder().addComponents(botonIndicio);
+    const botonTransferir = new ButtonBuilder()
+        .setCustomId('transferir_sufrimiento')
+        .setLabel('Transferir Actividad')
+        .setEmoji('🔄')
+        .setStyle(ButtonStyle.Secondary);
+
+    const row = new ActionRowBuilder().addComponents(botonIndicio, botonTransferir);
 
     const mensajeRecordatorio = await channel.send({
-        content: `# Sufrimiento del día **${nombreDia}** <:sufrimiento:1486794952674644019>\nPsss oye <@${usuarioId}>\nAquí tienes un pequeño recordatorio de que tienes que hacer el <#${CANAL_SUFRIMIENTO_ID}> en unos 5 minutos, recuerda que si te demoras 15 minutos, otro miembro del staff lo hará por tí.`,
+        content: `# Sufrimiento del día **${nombreDia}** <:sufrimiento:1486794952674644019>\nPsss oye <@${usuarioId}>\nAquí tienes un pequeño recordatorio de que tienes que hacer el <#${CANAL_SUFRIMIENTO_ID}> en unos 5 minutos, recuerda que si te demoras 15 minutos, puedes transferir la actividad o de lo contrario el sistema alertará al staff automáticamente.`,
         components: [row]
     });
 
@@ -149,7 +165,8 @@ async function enviarRecordatorioSufrimiento(channel, diaValor, usuarioId) {
         if (!actividadSufrimientoConfirmada) {
             try {
                 botonIndicio.setDisabled(true);
-                await mensajeRecordatorio.edit({ components: [new ActionRowBuilder().addComponents(botonIndicio)] });
+                botonTransferir.setDisabled(true);
+                await mensajeRecordatorio.edit({ components: [new ActionRowBuilder().addComponents(botonIndicio, botonTransferir)] });
             } catch (err) {}
 
             await enviarAlertaActividadesLibres(channel);
@@ -172,10 +189,16 @@ async function enviarRecordatorioGustos(channel, diaValor, usuarioId) {
         .setEmoji('✅')
         .setStyle(ButtonStyle.Success);
 
-    const row = new ActionRowBuilder().addComponents(botonIndicio);
+    const botonTransferir = new ButtonBuilder()
+        .setCustomId('transferir_gustos')
+        .setLabel('Transferir Actividad')
+        .setEmoji('🔄')
+        .setStyle(ButtonStyle.Secondary);
+
+    const row = new ActionRowBuilder().addComponents(botonIndicio, botonTransferir);
 
     const mensajeRecordatorio = await channel.send({
-        content: `# Pregunta y gustos día **${nombreDia}** <:pregunta:1508531730225696798>\nSaludos, momento de un pequeño recordatorio: \n> Buenos días <@${usuarioId}> Recuerda que esta es la hora en la que tienes que hacer la <#${CANAL_ACTIVIDAD_GUSTOS_ID}> el día de hoy.\nAdemás, <@${usuarioId}> el día de hoy te toca hacer la encuesta de <#${CANAL_ENCUESTA_GUSTOS_ID}> , por lo que es mejor que pienses que vas a colocar.\nRecuerden que si se demoran una hora, otros miembros del staff lo harán por ustedes.`,
+        content: `# Pregunta y gustos día **${nombreDia}** <:pregunta:1508531730225696798>\nSaludos, momento de un pequeño recordatorio: \n> Buenos días <@${usuarioId}> Recuerda que esta es la hora en la que tienes que hacer la <#${CANAL_ACTIVIDAD_GUSTOS_ID}> el día de hoy.\nAdemás, te toca hacer la encuesta de <#${CANAL_ENCUESTA_GUSTOS_ID}>.\nSi no puedes hacerlo, aprieta el botón de transferir, de lo contrario se alertará al staff en una hora.`,
         components: [row]
     });
 
@@ -187,7 +210,8 @@ async function enviarRecordatorioGustos(channel, diaValor, usuarioId) {
         if (!actividadGustosConfirmada) {
             try {
                 botonIndicio.setDisabled(true);
-                await mensajeRecordatorio.edit({ components: [new ActionRowBuilder().addComponents(botonIndicio)] });
+                botonTransferir.setDisabled(true);
+                await mensajeRecordatorio.edit({ components: [new ActionRowBuilder().addComponents(botonIndicio, botonTransferir)] });
             } catch (err) {}
 
             await enviarAlertaActividadesLibres(channel);
@@ -206,7 +230,7 @@ async function enviarAlertaActividadesLibres(channel) {
         .setStyle(ButtonStyle.Primary);
 
     await channel.send({
-        content: `# <@&${ROL_STAFF_ID}>\n> Hay una actividad disponible que el usuario no ha dado indicio de actividad para realizarla. ¡Por favor apreté el botón debajo para así reclamarla!`,
+        content: `# <@&${ROL_STAFF_ID}>\n> Hay una actividad disponible para realizarse. ¡Por favor aprieta el botón debajo para así reclamarla!`,
         components: [new ActionRowBuilder().addComponents(botonReclamar)]
     });
 }
@@ -222,7 +246,6 @@ client.once('ready', async () => {
 
         if (!channelCalendario) return;
 
-        // Buscar mensaje existente del calendario
         const recent = await channelCalendario.messages.fetch({ limit: 10 });
         mensajeCalendario = recent.find(m => m.author.id === client.user.id && m.embeds.length > 0);
 
@@ -234,7 +257,6 @@ client.once('ready', async () => {
 
         const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
-        // CRON 1: Todos los Domingos a las 12:30 AM GMT (30 0 * * 0) -> Reinicio de Calendario y Aviso al Staff
         cron.schedule('30 0 * * 0', async () => {
             diasReclamados = {};
             await actualizarMensaje();
@@ -246,7 +268,6 @@ client.once('ready', async () => {
             }
         }, { timezone: "Etc/UTC" });
 
-        // CRON 2: 4:00 PM GMT (16:00 UTC) -> Recordatorio Pregunta y Gustos
         cron.schedule('0 16 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
@@ -255,7 +276,6 @@ client.once('ready', async () => {
             }
         }, { timezone: "Etc/UTC" });
 
-        // CRON 3: 11:55 PM GMT (23:55 UTC) -> Recordatorio Sufrimiento del Día
         cron.schedule('55 23 * * *', async () => {
             const diaHoy = diasNombreUTC[new Date().getUTCDay()];
 
@@ -269,7 +289,47 @@ client.once('ready', async () => {
     }
 });
 
-// Listener de interacciones (Menús y Botones)
+// =================================================================
+// EVENTO: COMANDOS DE TEXTO PARA TESTS MANUALES
+// =================================================================
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+
+    if (message.content === '.test') {
+        try {
+            const canalCalendario = await client.channels.fetch(CANAL_CALENDARIO_ID);
+            if (canalCalendario) {
+                mensajeCalendario = await canalCalendario.send({ 
+                    embeds: construirEmbeds(), 
+                    components: construirComponentes() 
+                });
+                await message.reply(`✅ Calendario nuevo enviado exitosamente a <#${CANAL_CALENDARIO_ID}>.`);
+            }
+        } catch (error) {
+            console.error(error);
+            await message.reply('❌ Hubo un error al intentar enviar el calendario.');
+        }
+    }
+
+    if (message.content === '.test1') {
+        try {
+            const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+            const diaHoy = diasNombreUTC[new Date().getUTCDay()];
+            
+            const usuarioPruebaId = message.author.id;
+
+            await enviarRecordatorioGustos(message.channel, diaHoy, usuarioPruebaId);
+            await message.delete().catch(() => {}); 
+        } catch (error) {
+            console.error(error);
+            await message.channel.send('❌ Hubo un error al generar el recordatorio de prueba.');
+        }
+    }
+});
+
+// =================================================================
+// EVENTO: LISTENER DE INTERACCIONES (MENÚS Y BOTONES)
+// =================================================================
 client.on('interactionCreate', async interaction => {
     
     // 1. SELECCIÓN DE DÍA
@@ -340,6 +400,33 @@ client.on('interactionCreate', async interaction => {
 
             await interaction.message.edit({ components: [new ActionRowBuilder().addComponents(botonReclamado)] });
         } catch (e) {}
+    }
+
+    // 5. TRANSFERIR ACTIVIDAD
+    if (interaction.isButton() && (interaction.customId === 'transferir_sufrimiento' || interaction.customId === 'transferir_gustos')) {
+        
+        if (interaction.customId === 'transferir_sufrimiento') {
+            actividadSufrimientoConfirmada = true; 
+            if (temporizadorSufrimiento) clearTimeout(temporizadorSufrimiento);
+        } else {
+            actividadGustosConfirmada = true;
+            if (temporizadorGustos) clearTimeout(temporizadorGustos);
+        }
+
+        await interaction.reply({ content: '🔄 Has transferido la actividad. Se notificará al staff inmediatamente para que alguien la tome.', flags: MessageFlags.Ephemeral });
+        
+        try {
+            const botonDeshabilitado = new ButtonBuilder()
+                .setCustomId('actividad_transferida')
+                .setLabel('Actividad Transferida')
+                .setEmoji('🔄')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true);
+
+            await interaction.message.edit({ components: [new ActionRowBuilder().addComponents(botonDeshabilitado)] });
+        } catch (e) {}
+
+        await enviarAlertaActividadesLibres(interaction.channel);
     }
 });
 
