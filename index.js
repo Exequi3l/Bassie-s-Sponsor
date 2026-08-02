@@ -88,6 +88,7 @@ function construirEmbeds() {
         .setTitle('ৎㅤ︵ㅤCalendario semanal de actividadesㅤ.ᐟ')
         .setDescription(descripcionInfo)
         .setColor('#3498DB');
+        .setThumbnail('https://cdn.discordapp.com/attachments/1518366482965336194/1533383874061668492/1522385796353757225.png?ex=6a704a84&is=6a6ef904&hm=e6befe348e7b4429b5ba0a2eadefa3c296dba188ad1173f51111d81e96c6e848&')
 
     // 2. Embed Pregunta del Día 
     const embedPregunta = new EmbedBuilder()
