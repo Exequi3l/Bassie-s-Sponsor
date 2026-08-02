@@ -1,30 +1,20 @@
-// memberHandler.js
-const { Events } = require('discord.js');
+require('dotenv').config();
+const { REST, Routes } = require('discord.js');
 
-const USUARIO_ESPECIAL_ID = '1514851403213050118'; 
-const ROL_A_ASIGNAR_ID = '1481404982723874847';
-const LOG_CHANNEL_ID = '1380321494298792147';
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-module.exports = (client) => {
-    client.on(Events.GuildMemberAdd, async (member) => {
-        if (member.id === USUARIO_ESPECIAL_ID) {
-            try {
-                const role = member.guild.roles.cache.get(ROL_A_ASIGNAR_ID);
-                if (role) {
-                    await member.roles.add(role);
-                    
-                    // --- Aquí enviamos solo el mensaje de texto ---
-                    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-                    if (logChannel) {
-                        await logChannel.send(
-                            `Se le ha añadido el rol **${role.name}** a <@${member.id}> por sospechas de suplantación de identidad.`
-                        );
-                    }
-                    console.log(`Rol asignado y mensaje de log enviado para ${member.user.tag}`);
-                }
-            } catch (err) {
-                console.error("Error al asignar rol:", err);
-            }
-        }
-    });
-};
+(async () => {
+    try {
+        console.log('Borrando todos los comandos de barra...');
+
+        // Al enviar un array vacío [], Discord elimina cualquier comando registrado
+        await rest.put(
+            Routes.applicationCommands('1499992673950371860'), // Reemplaza con el ID de tu aplicación (Client ID)
+            { body: [] },
+        );
+
+        console.log('¡Listo! Todos los comandos han sido eliminados de Discord.');
+    } catch (error) {
+        console.error('Hubo un error al borrar los comandos:', error);
+    }
+})();
