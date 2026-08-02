@@ -46,7 +46,7 @@ const ROL_STAFF_ID = '1531150257210003456';
 
 // Control de días y temporizadores
 let diasReclamados = {};
-let mensajeCalendario = null;
+let mensajeCalendario = null; 
 
 let actividadSufrimientoConfirmada = false;
 let temporizadorSufrimiento = null;
@@ -64,35 +64,47 @@ const diasSemana = [
     { label: 'Domingo', value: 'domingo' }
 ];
 
-// Generar los 4 Embeds
+// Generar los 5 Embeds
 function construirEmbeds() {
-    let descripcion = '**E**n el apartado de abajo selecciona un día para reclamarlo, esto es una organización para las actividades semanales. \n**S**i un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n';
-
+    // Generamos la lista del calendario una sola vez para copiarla en los demás embeds
+    let listaCalendario = '';
     for (const dia of diasSemana) {
         const usuarioId = diasReclamados[dia.value];
-        descripcion += `⤷ ${dia.label} ﹕ ${usuarioId ? `<@${usuarioId}>` : '🟢 Disponible'}\n`;
+        listaCalendario += `⤷ ${dia.label} ﹕ ${usuarioId ? `<@${usuarioId}>` : '🟢 Disponible'}\n`;
     }
 
+    // 1. Embed Principal (Información y único con descripción larga)
+    const descripcionInfo = '**E**n el apartado de abajo selecciona un día para reclamarlo, esto es una organización para las actividades semanales. \n**S**i un día ya está ocupado aparecerá asignado a su respectivo usuario.\n\n' + listaCalendario;
+
+    const embedInfo = new EmbedBuilder()
+        .setTitle('ৎㅤ︵ㅤCalendario semanal de actividadesㅤ.ᐟ')
+        .setDescription(descripcionInfo)
+        .setColor('#3498DB');
+
+    // 2. Embed Pregunta del Día (Copia el calendario)
     const embedPregunta = new EmbedBuilder()
         .setTitle('❓ Pregunta del Día')
-        .setDescription(descripcion)
-        .setColor('#3498DB'); 
+        .setDescription(listaCalendario)
+        .setColor('#5865F2');
 
+    // 3. Embed Gustos Canastosos (Copia el calendario)
     const embedGustos = new EmbedBuilder()
         .setTitle('🧺 Gustos Canastosos')
-        .setDescription('Espacio dedicado a compartir esos placeres culposos o gustos raros.')
+        .setDescription(listaCalendario)
         .setColor('#F1C40F'); 
 
+    // 4. Embed Sufrimiento del Día (Copia el calendario)
     const embedSufrimiento = new EmbedBuilder()
-        .setTitle('😩 Sufrimiento del Día')
-        .setDescription('Desahógate un poco sobre lo peor o más frustrante que te pasó hoy.')
+        .setTitle('📭 Sufrimiento del Día')
+        .setDescription(listaCalendario)
         .setColor('#E74C3C'); 
 
+    // 5. Embed Cancelar
     const embedCancelar = new EmbedBuilder()
         .setDescription('**¿Deseas cancelar tu actividad?**\nSi ya habías reclamado un día y quieres liberarlo, presiona el botón de abajo.')
         .setColor('#2F3136'); 
 
-    return [embedPregunta, embedGustos, embedSufrimiento, embedCancelar];
+    return [embedInfo, embedPregunta, embedGustos, embedSufrimiento, embedCancelar];
 }
 
 // Generar los botones y el menú desplegable
@@ -125,7 +137,7 @@ async function actualizarMensaje() {
         await mensajeCalendario.edit({
             embeds: construirEmbeds(),
             components: construirComponentes()
-        });
+        }).catch(console.error);
     }
 }
 
@@ -259,9 +271,9 @@ client.once('ready', async () => {
 
         // REINICIO DEL CALENDARIO: Domingos a las 00:30 UTC (12:30 AM GMT / 9:30 PM GMT-3 del Sábado)
         cron.schedule('30 0 * * 0', async () => {
-            diasReclamados = {};
+            diasReclamados = {}; 
             
-            // Enviar un nuevo mensaje de calendario en lugar de actualizar el antiguo
+            // Envía un mensaje totalmente NUEVO al canal
             if (channelCalendario) {
                 mensajeCalendario = await channelCalendario.send({
                     embeds: construirEmbeds(),
@@ -307,7 +319,6 @@ client.on('messageCreate', async message => {
     const diaHoy = diasNombreUTC[new Date().getUTCDay()];
     const usuarioPruebaId = message.author.id;
 
-    // .test -> Enviar un nuevo calendario reseteado al canal de pruebas
     if (message.content === '.test') {
         try {
             diasReclamados = {};
@@ -325,7 +336,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // .test1 -> Recordatorio de Sufrimiento del Día
     if (message.content === '.test1') {
         try {
             await enviarRecordatorioSufrimiento(message.channel, diaHoy, usuarioPruebaId);
@@ -336,7 +346,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // .test2 -> Recordatorio de Gustos Canastosos
     if (message.content === '.test2') {
         try {
             await enviarRecordatorioGustos(message.channel, diaHoy, usuarioPruebaId);
@@ -347,7 +356,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // .test3 -> Recordatorio de Pregunta del Día
     if (message.content === '.test3') {
         try {
             await enviarRecordatorioGustos(message.channel, diaHoy, usuarioPruebaId);
@@ -358,7 +366,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // .test4 -> Aviso al staff de que alguien no reclamó la actividad
     if (message.content === '.test4') {
         try {
             await enviarAlertaActividadesLibres(message.channel);
@@ -369,7 +376,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // .test5 -> Simulación completa del reinicio del calendario
     if (message.content === '.test5') {
         try {
             diasReclamados = {};
@@ -404,6 +410,10 @@ client.on('interactionCreate', async interaction => {
     
     // 1. SELECCIÓN DE DÍA
     if (interaction.isStringSelectMenu() && interaction.customId === 'calendario_menu') {
+        if (mensajeCalendario && interaction.message.id !== mensajeCalendario.id) {
+            return interaction.reply({ content: '❌ Este calendario ya ha expirado. Por favor utiliza el mensaje de calendario más reciente.', flags: MessageFlags.Ephemeral });
+        }
+
         const dia = interaction.values[0];
         const user = interaction.user.id;
 
@@ -420,6 +430,10 @@ client.on('interactionCreate', async interaction => {
 
     // 2. CANCELAR SELECCIÓN
     if (interaction.isButton() && interaction.customId === 'cancelar_actividad') {
+        if (mensajeCalendario && interaction.message.id !== mensajeCalendario.id) {
+            return interaction.reply({ content: '❌ Este calendario ya ha expirado. Por favor utiliza el mensaje de calendario más reciente.', flags: MessageFlags.Ephemeral });
+        }
+
         const user = interaction.user.id;
         const diaOcupado = Object.keys(diasReclamados).find(key => diasReclamados[key] === user);
 
