@@ -87,7 +87,7 @@ function construirEmbeds() {
     const embedInfo = new EmbedBuilder()
         .setTitle('ৎㅤ︵ㅤCalendario semanal de actividadesㅤ.ᐟ')
         .setDescription(descripcionInfo)
-        .setColor('#3498DB');
+        .setColor('#3498DB')
         .setThumbnail('https://i.imgur.com/DRwb1jR.png');
 
     // 2. Embed Pregunta del Día 
