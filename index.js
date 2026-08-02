@@ -257,9 +257,17 @@ client.once('ready', async () => {
 
         const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
+        // REINICIO DEL CALENDARIO: Domingos a las 00:30 UTC (12:30 AM GMT / 9:30 PM GMT-3 del Sábado)
         cron.schedule('30 0 * * 0', async () => {
             diasReclamados = {};
-            await actualizarMensaje();
+            
+            // Enviar un nuevo mensaje de calendario en lugar de actualizar el antiguo
+            if (channelCalendario) {
+                mensajeCalendario = await channelCalendario.send({
+                    embeds: construirEmbeds(),
+                    components: construirComponentes()
+                });
+            }
 
             if (channelAvisos) {
                 await channelAvisos.send({
@@ -295,34 +303,96 @@ client.once('ready', async () => {
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
+    const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    const diaHoy = diasNombreUTC[new Date().getUTCDay()];
+    const usuarioPruebaId = message.author.id;
+
+    // .test -> Enviar un nuevo calendario reseteado al canal de pruebas
     if (message.content === '.test') {
         try {
+            diasReclamados = {};
             const canalCalendario = await client.channels.fetch(CANAL_CALENDARIO_ID);
             if (canalCalendario) {
                 mensajeCalendario = await canalCalendario.send({ 
                     embeds: construirEmbeds(), 
                     components: construirComponentes() 
                 });
-                await message.reply(`✅ Calendario nuevo enviado exitosamente a <#${CANAL_CALENDARIO_ID}>.`);
+                await message.reply(`✅ Nuevo calendario enviado exitosamente a <#${CANAL_CALENDARIO_ID}>.`);
             }
         } catch (error) {
             console.error(error);
-            await message.reply('❌ Hubo un error al intentar enviar el calendario.');
+            await message.reply('❌ Hubo un error al intentar enviar el nuevo calendario.');
         }
     }
 
+    // .test1 -> Recordatorio de Sufrimiento del Día
     if (message.content === '.test1') {
         try {
-            const diasNombreUTC = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-            const diaHoy = diasNombreUTC[new Date().getUTCDay()];
-            
-            const usuarioPruebaId = message.author.id;
+            await enviarRecordatorioSufrimiento(message.channel, diaHoy, usuarioPruebaId);
+            await message.delete().catch(() => {}); 
+        } catch (error) {
+            console.error(error);
+            await message.channel.send('❌ Hubo un error al generar el recordatorio de prueba (Sufrimiento del Día).');
+        }
+    }
 
+    // .test2 -> Recordatorio de Gustos Canastosos
+    if (message.content === '.test2') {
+        try {
             await enviarRecordatorioGustos(message.channel, diaHoy, usuarioPruebaId);
             await message.delete().catch(() => {}); 
         } catch (error) {
             console.error(error);
-            await message.channel.send('❌ Hubo un error al generar el recordatorio de prueba.');
+            await message.channel.send('❌ Hubo un error al generar el recordatorio de prueba (Gustos Canastosos).');
+        }
+    }
+
+    // .test3 -> Recordatorio de Pregunta del Día
+    if (message.content === '.test3') {
+        try {
+            await enviarRecordatorioGustos(message.channel, diaHoy, usuarioPruebaId);
+            await message.delete().catch(() => {}); 
+        } catch (error) {
+            console.error(error);
+            await message.channel.send('❌ Hubo un error al generar el recordatorio de prueba (Pregunta del Día).');
+        }
+    }
+
+    // .test4 -> Aviso al staff de que alguien no reclamó la actividad
+    if (message.content === '.test4') {
+        try {
+            await enviarAlertaActividadesLibres(message.channel);
+            await message.delete().catch(() => {}); 
+        } catch (error) {
+            console.error(error);
+            await message.channel.send('❌ Hubo un error al generar la alerta del staff.');
+        }
+    }
+
+    // .test5 -> Simulación completa del reinicio del calendario
+    if (message.content === '.test5') {
+        try {
+            diasReclamados = {};
+            const canalCalendario = await client.channels.fetch(CANAL_CALENDARIO_ID);
+            const canalAvisos = await client.channels.fetch(CANAL_AVISOS_ID);
+
+            if (canalCalendario) {
+                mensajeCalendario = await canalCalendario.send({ 
+                    embeds: construirEmbeds(), 
+                    components: construirComponentes() 
+                });
+            }
+
+            if (canalAvisos) {
+                await canalAvisos.send({
+                    content: `# __<@&${ROL_STAFF_ID}>__\n> Saludos equipo del staff, se ha reiniciado correctamente el calendario de actividades. Esto indica que ya pueden elegir su día en <#${CANAL_CALENDARIO_ID}>. ¡Nos vemos!`
+                });
+            }
+
+            await message.reply('✅ Reinicio completo del calendario ejecutado.');
+        } catch (error) {
+            console.error(error);
+            await message.reply('❌ Hubo un error al ejecutar el reinicio de prueba.');
         }
     }
 });
